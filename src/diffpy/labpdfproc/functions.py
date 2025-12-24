@@ -245,7 +245,7 @@ def _cve_method(method):
 def compute_cve(
     input_pattern, mud, method="polynomial_interpolation", xtype="tth"
 ):
-    f"""Compute and interpolate the cve
+    f"""Compute and interpolate the cylindrical volume effect (cve)
     for the given input diffraction data and mu*D
     using the selected method.
 

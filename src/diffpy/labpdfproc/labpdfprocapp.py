@@ -5,13 +5,10 @@ from pathlib import Path
 from gooey import Gooey, GooeyParser
 
 from diffpy.labpdfproc.functions import CVE_METHODS, apply_corr, compute_cve
-from diffpy.labpdfproc.tools import (
-    known_sources,
-    load_metadata,
-    preprocessing_args,
-)
+from diffpy.labpdfproc.tools import WAVELENGTHS, known_sources
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
 from diffpy.utils.parsers.loaddata import loadData
+from diffpy.utils.tools import compute_mu_using_xraydb, compute_mud
 
 # -----------------------
 # Helper functions
@@ -22,12 +19,27 @@ def _add_common_args(parser, use_gui=False):
     parser.add_argument(
         "-t",
         "--target-dir",
-        help="Directory to save corrected files (created if needed). Defaults to current directory.",
+        help=(
+            "Directory to save corrected files (created if needed). "
+            "Defaults to current directory."
+        ),
         default=None,
         **({"widget": "DirChooser"} if use_gui else {}),
     )
     parser.add_argument(
         "-f", "--force", help="Overwrite existing files", action="store_true"
+    )
+    parser.add_argument(
+        "--xtype",
+        help="X-axis type for output (default: tth)",
+        default="tth",
+        choices=XQUANTITIES,
+    )
+    parser.add_argument(
+        "--method",
+        help="Method for CVE calculation (default: polynomial_interpolation)",
+        default="polynomial_interpolation",
+        choices=CVE_METHODS,
     )
     _add_credit_args(parser, use_gui)
     return parser
@@ -77,11 +89,41 @@ def _attach_credit_metadata(pattern, args):
             pattern.metadata[key] = value
 
 
-def _load_pattern(path):
+def _load_pattern(path, wavelength=None):
     x, y = loadData(path, unpack=True)
     return DiffractionObject(
-        xarray=x, yarray=y, xtype="tth", name=path.stem, metadata=None
+        xarray=x,
+        yarray=y,
+        xtype="tth",
+        wavelength=wavelength,
+        name=path.stem,
+        metadata=None,
     )
+
+
+def _get_wavelength(energy_or_source):
+    """Convert energy (keV) or source name to wavelength (Angstrom)."""
+    try:
+        # Try to parse as numeric energy in keV
+        energy_kev = float(energy_or_source)
+        # Convert keV to wavelength in Angstrom: λ = 12.398 / E(keV)
+        return 12.398 / energy_kev
+    except ValueError:
+        # It's a source name, look it up
+        matched_source = next(
+            (
+                key
+                for key in WAVELENGTHS
+                if key.lower() == energy_or_source.lower()
+            ),
+            None,
+        )
+        if matched_source is None:
+            raise ValueError(
+                f"Source '{energy_or_source}' not recognized. "
+                f"Allowed sources are {known_sources}."
+            )
+        return WAVELENGTHS[matched_source]
 
 
 # -----------------------
@@ -90,54 +132,45 @@ def _load_pattern(path):
 
 
 def run_mud(args):
-    # Ensure missing attributes exist to avoid set_mud errors
-    for attr in ("z_scan_file", "composition", "energy", "density"):
-        if not hasattr(args, attr):
-            setattr(args, attr, None)
-
-    args = preprocessing_args(args)
     path = Path(args.xray_data)
     pattern = _load_pattern(path)
 
-    corr = compute_cve(pattern, args.mud)
+    corr = compute_cve(pattern, args.mud, method=args.method, xtype=args.xtype)
     corrected = apply_corr(pattern, corr)
     _attach_credit_metadata(corrected, args)
     _save_corrected(corrected, path, args.target_dir, args.force)
 
 
 def run_zscan(args):
-    # Ensure missing attributes exist
-    for attr in ("mud", "composition", "energy", "density"):
-        if not hasattr(args, attr):
-            setattr(args, attr, None)
-
-    args = preprocessing_args(args)
     pattern_path = Path(args.xray_data)
-    scan_path = Path(args.zscan_file)
+    zscan_path = Path(args.zscan_file)
+
+    # Compute mud from z-scan file
+    mud = compute_mud(zscan_path)
 
     pattern = _load_pattern(pattern_path)
-    corr = compute_cve(pattern, zscan_file=scan_path)
+    corr = compute_cve(pattern, mud, method=args.method, xtype=args.xtype)
     corrected = apply_corr(pattern, corr)
     _attach_credit_metadata(corrected, args)
     _save_corrected(corrected, pattern_path, args.target_dir, args.force)
 
 
 def run_sample(args):
-    # Ensure missing attributes exist
-    for attr in ("mud", "z_scan_file"):
-        if not hasattr(args, attr):
-            setattr(args, attr, None)
-
-    args = preprocessing_args(args)
     path = Path(args.xray_data)
-    pattern = _load_pattern(path)
 
-    try:
-        energy = float(args.energy)
-    except ValueError:
-        energy = args.energy  # named source
+    # Get wavelength from energy or source
+    wavelength = _get_wavelength(args.energy)
 
-    corr = compute_cve(pattern, (args.composition, energy, args.density))
+    # Convert wavelength to energy in keV for xraydb
+    energy_kev = 12.398 / wavelength
+
+    # Compute mu*d from sample parameters
+    mud = compute_mu_using_xraydb(
+        args.composition, energy_kev, sample_mass_density=args.density
+    )
+
+    pattern = _load_pattern(path, wavelength=wavelength)
+    corr = compute_cve(pattern, mud, method=args.method, xtype=args.xtype)
     corrected = apply_corr(pattern, corr)
     _attach_credit_metadata(corrected, args)
     _save_corrected(corrected, path, args.target_dir, args.force)
@@ -153,8 +186,9 @@ def create_parser(use_gui=False):
     parser = Parser(
         prog="labpdfproc",
         description=(
-            "Apply absorption corrections to laboratory X-ray diffraction data "
-            "prior to PDF analysis. Supports manual mu*d, z-scan, or sample-based corrections."
+            "Apply absorption corrections to laboratory X-ray diffraction "
+            "data prior to PDF analysis. "
+            "Supports manual mu*d, z-scan, or sample-based corrections."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -209,7 +243,10 @@ def create_parser(use_gui=False):
     sample_parser.add_argument(
         "--energy",
         required=True,
-        help="Incident X-ray energy in keV (numeric) or known source (CuKa, MoKa)",
+        help=(
+            "Incident X-ray energy in keV (numeric) or known "
+            "source (CuKa, MoKa, etc.)"
+        ),
     )
     sample_parser.add_argument(
         "--density",
