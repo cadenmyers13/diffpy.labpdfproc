@@ -8,6 +8,8 @@ from diffpy.labpdfproc.labpdfprocapp import (
 )
 from diffpy.labpdfproc.tools import WAVELENGTHS
 
+sources = sorted(WAVELENGTHS.keys())
+
 
 @pytest.mark.parametrize(
     "wavelength,expected",
@@ -23,9 +25,6 @@ from diffpy.labpdfproc.tools import WAVELENGTHS
 def test_resolve_wavelength(wavelength, expected):
     actual = resolve_wavelength(wavelength)
     assert actual == expected
-
-
-sources = sorted(WAVELENGTHS.keys())
 
 
 @pytest.mark.parametrize(
