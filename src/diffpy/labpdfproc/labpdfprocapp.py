@@ -89,11 +89,9 @@ def _save_corrected(corrected, input_path, target_dir, force, xtype):
     target_dir = Path(target_dir) if target_dir else Path.cwd()
     target_dir.mkdir(parents=True, exist_ok=True)
     outfile = target_dir / (input_path.stem + "_corrected.chi")
-
     if outfile.exists() and not force:
         print(f"WARNING: {outfile} exists. Use --force to overwrite.")
         return
-
     _ensure_metadata(corrected)
     corrected.dump(str(outfile), xtype=xtype)
     print(f"Saved corrected data to {outfile}")
@@ -103,11 +101,9 @@ def _save_correction(correction, input_path, target_dir, force, xtype):
     target_dir = Path(target_dir) if target_dir else Path.cwd()
     target_dir.mkdir(parents=True, exist_ok=True)
     corrfile = target_dir / (input_path.stem + "_cve.chi")
-
     if corrfile.exists() and not force:
         print(f"WARNING: {corrfile} exists. Use --force to overwrite.")
         return
-
     _ensure_metadata(correction)
     correction.dump(str(corrfile), xtype=xtype)
     print(f"Saved correction data to {corrfile}")
@@ -136,32 +132,37 @@ def _load_pattern(path, xtype, wavelength=None):
     )
 
 
-def resolve_wavelength(w):
+def resolve_wavelength(wavelength):
     """Resolve wavelength from user input.
 
-    - numeric -> wavelength in Angstrom
-    - string  -> X-ray source name
+    Parameters
+    ----------
+    w : str or float
+        User input for wavelength. Can be numeric (in Angstroms) or
+        a string X-ray source name (e.g. 'CuKa').
+
+    Returns
+    -------
+    float
+        Wavelength in Angstroms.
     """
-    if w is None:
+    if wavelength is None:
         raise ValueError(
             "X-ray wavelength must be provided as a positional argument "
             "after the diffraction data file."
         )
-
-    # numeric wavelength
     try:
-        return float(w)
+        return float(wavelength)
     except (TypeError, ValueError):
         pass
-
-    # source name
     sources = sorted(WAVELENGTHS.keys())
     matched = next(
-        (k for k in sources if k.lower() == str(w).strip().lower()), None
+        (k for k in sources if k.lower() == str(wavelength).strip().lower()),
+        None,
     )
     if matched is None:
         raise ValueError(
-            f"Unknown X-ray source '{w}'. "
+            f"Unknown X-ray source '{wavelength}'. "
             f"Allowed sources are: {', '.join(sources)}."
         )
     return WAVELENGTHS[matched]
@@ -174,56 +175,51 @@ def resolve_wavelength(w):
 
 def run_mud(args):
     path = Path(args.xray_data)
-
     wavelength = resolve_wavelength(args.wavelength)
     pattern = _load_pattern(path, args.xtype, wavelength)
-
-    corr = compute_cve(pattern, args.mud, method=args.method, xtype=args.xtype)
-    _attach_credit_metadata(corr, args)
-    corrected = apply_corr(pattern, corr)
-    corrected.name = f"Absorption corrected input_data: {pattern.name}"
-
-    _attach_credit_metadata(corrected, args)
-    _save_corrected(corrected, path, args.target_dir, args.force, args.xtype)
-
+    correction = compute_cve(
+        pattern, args.mud, method=args.method, xtype=args.xtype
+    )
+    _attach_credit_metadata(correction, args)
+    corrected_data = apply_corr(pattern, correction)
+    corrected_data.name = f"Absorption corrected input_data: {pattern.name}"
+    _attach_credit_metadata(corrected_data, args)
+    _save_corrected(
+        corrected_data, path, args.target_dir, args.force, args.xtype
+    )
     if args.output_correction:
-        _save_correction(corr, path, args.target_dir, args.force, args.xtype)
+        _save_correction(
+            correction, path, args.target_dir, args.force, args.xtype
+        )
 
 
 def run_zscan(args):
     pattern_path = Path(args.xray_data)
     zscan_path = Path(args.zscan_file)
-
     wavelength = resolve_wavelength(args.wavelength)
-
     mud = compute_mud(zscan_path)
     print(f"Computed mu*D = {mud:.4f} from z-scan file")
-
     pattern = _load_pattern(pattern_path, args.xtype, wavelength)
-    corr = compute_cve(pattern, mud, method=args.method, xtype=args.xtype)
-    _attach_credit_metadata(corr, args)
-    corrected = apply_corr(pattern, corr)
-    corrected.name = f"Absorption corrected input_data: {pattern.name}"
-
-    _attach_credit_metadata(corrected, args)
-    _save_corrected(
-        corrected, pattern_path, args.target_dir, args.force, args.xtype
+    correction = compute_cve(
+        pattern, mud, method=args.method, xtype=args.xtype
     )
-
+    _attach_credit_metadata(correction, args)
+    corrected_data = apply_corr(pattern, correction)
+    corrected_data.name = f"Absorption corrected input_data: {pattern.name}"
+    _attach_credit_metadata(corrected_data, args)
+    _save_corrected(
+        corrected_data, pattern_path, args.target_dir, args.force, args.xtype
+    )
     if args.output_correction:
         _save_correction(
-            corr, pattern_path, args.target_dir, args.force, args.xtype
+            correction, pattern_path, args.target_dir, args.force, args.xtype
         )
 
 
 def run_sample(args):
     path = Path(args.xray_data)
-
     wavelength = resolve_wavelength(args.wavelength)
-
-    # Convert wavelength (Å) to energy (keV)
-    energy_kev = 12.398 / wavelength
-
+    energy_kev = 12.398 / wavelength  # Convert Å to keV
     mud = compute_mu_using_xraydb(
         args.composition,
         energy_kev,
@@ -233,18 +229,21 @@ def run_sample(args):
         f"Computed mu*D = {mud:.4f} for {args.composition} "
         f"at λ = {wavelength:.4f} Å"
     )
-
     pattern = _load_pattern(path, args.xtype, wavelength)
-    corr = compute_cve(pattern, mud, method=args.method, xtype=args.xtype)
-    _attach_credit_metadata(corr, args)
-    corrected = apply_corr(pattern, corr)
-    corrected.name = f"Absorption corrected input_data: {pattern.name}"
-
-    _attach_credit_metadata(corrected, args)
-    _save_corrected(corrected, path, args.target_dir, args.force, args.xtype)
-
+    correction = compute_cve(
+        pattern, mud, method=args.method, xtype=args.xtype
+    )
+    _attach_credit_metadata(correction, args)
+    corrected_data = apply_corr(pattern, correction)
+    corrected_data.name = f"Absorption corrected input_data: {pattern.name}"
+    _attach_credit_metadata(corrected_data, args)
+    _save_corrected(
+        corrected_data, path, args.target_dir, args.force, args.xtype
+    )
     if args.output_correction:
-        _save_correction(corr, path, args.target_dir, args.force, args.xtype)
+        _save_correction(
+            correction, path, args.target_dir, args.force, args.xtype
+        )
 
 
 def add_positional_wavelength(parser):
