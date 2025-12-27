@@ -5,7 +5,7 @@ from pathlib import Path
 from gooey import Gooey, GooeyParser
 
 from diffpy.labpdfproc.functions import CVE_METHODS, apply_corr, compute_cve
-from diffpy.labpdfproc.tools import WAVELENGTHS, known_sources
+from diffpy.labpdfproc.tools import WAVELENGTHS
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
 from diffpy.utils.parsers.loaddata import loadData
 from diffpy.utils.tools import compute_mu_using_xraydb, compute_mud
@@ -16,6 +16,27 @@ from diffpy.utils.tools import compute_mu_using_xraydb, compute_mud
 
 
 def _add_common_args(parser, use_gui=False):
+    parser.add_argument(
+        "-x",
+        "--xtype",
+        help=(
+            "X-axis type (default: tth). Allowed values: "
+            f"{', '.join(XQUANTITIES)}"
+        ),
+        default="tth",
+        choices=XQUANTITIES,
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
+        help=(
+            "Method for cylindrical volume element (CVE) calculation "
+            "(default: polynomial_interpolation). Allowed methods: "
+            f"{', '.join(CVE_METHODS)}"
+        ),
+        default="polynomial_interpolation",
+        choices=CVE_METHODS,
+    )
     parser.add_argument(
         "-t",
         "--target-dir",
@@ -30,16 +51,10 @@ def _add_common_args(parser, use_gui=False):
         "-f", "--force", help="Overwrite existing files", action="store_true"
     )
     parser.add_argument(
-        "--xtype",
-        help="X-axis type for output (default: tth)",
-        default="tth",
-        choices=XQUANTITIES,
-    )
-    parser.add_argument(
-        "--method",
-        help="Method for CVE calculation (default: polynomial_interpolation)",
-        default="polynomial_interpolation",
-        choices=CVE_METHODS,
+        "-c",
+        "--output-correction",
+        help="Also output the absorption correction to a separate file",
+        action="store_true",
     )
     _add_credit_args(parser, use_gui)
     return parser
@@ -66,7 +81,11 @@ def _add_credit_args(parser, use_gui=False):
     )
 
 
-def _save_corrected(corrected, input_path, target_dir, force):
+def _ensure_metadata(obj):
+    obj.metadata = obj.metadata or {}
+
+
+def _save_corrected(corrected, input_path, target_dir, force, xtype):
     target_dir = Path(target_dir) if target_dir else Path.cwd()
     target_dir.mkdir(parents=True, exist_ok=True)
     outfile = target_dir / (input_path.stem + "_corrected.chi")
@@ -75,8 +94,23 @@ def _save_corrected(corrected, input_path, target_dir, force):
         print(f"WARNING: {outfile} exists. Use --force to overwrite.")
         return
 
-    corrected.dump(str(outfile), xtype=corrected.xtype)
+    _ensure_metadata(corrected)
+    corrected.dump(str(outfile), xtype=xtype)
     print(f"Saved corrected data to {outfile}")
+
+
+def _save_correction(correction, input_path, target_dir, force, xtype):
+    target_dir = Path(target_dir) if target_dir else Path.cwd()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    corrfile = target_dir / (input_path.stem + "_cve.chi")
+
+    if corrfile.exists() and not force:
+        print(f"WARNING: {corrfile} exists. Use --force to overwrite.")
+        return
+
+    _ensure_metadata(correction)
+    correction.dump(str(corrfile), xtype=xtype)
+    print(f"Saved correction data to {corrfile}")
 
 
 def _attach_credit_metadata(pattern, args):
@@ -89,41 +123,48 @@ def _attach_credit_metadata(pattern, args):
             pattern.metadata[key] = value
 
 
-def _load_pattern(path, wavelength=None):
+def _load_pattern(path, xtype, wavelength=None):
     x, y = loadData(path, unpack=True)
     return DiffractionObject(
         xarray=x,
         yarray=y,
-        xtype="tth",
+        xtype=xtype,
         wavelength=wavelength,
+        scat_quantity="x-ray",
         name=path.stem,
-        metadata=None,
+        metadata={},
     )
 
 
-def _get_wavelength(energy_or_source):
-    """Convert energy (keV) or source name to wavelength (Angstrom)."""
-    try:
-        # Try to parse as numeric energy in keV
-        energy_kev = float(energy_or_source)
-        # Convert keV to wavelength in Angstrom: λ = 12.398 / E(keV)
-        return 12.398 / energy_kev
-    except ValueError:
-        # It's a source name, look it up
-        matched_source = next(
-            (
-                key
-                for key in WAVELENGTHS
-                if key.lower() == energy_or_source.lower()
-            ),
-            None,
+def resolve_wavelength(w):
+    """Resolve wavelength from user input.
+
+    - numeric -> wavelength in Angstrom
+    - string  -> X-ray source name
+    """
+    if w is None:
+        raise ValueError(
+            "X-ray wavelength must be provided as a positional argument "
+            "after the diffraction data file."
         )
-        if matched_source is None:
-            raise ValueError(
-                f"Source '{energy_or_source}' not recognized. "
-                f"Allowed sources are {known_sources}."
-            )
-        return WAVELENGTHS[matched_source]
+
+    # numeric wavelength
+    try:
+        return float(w)
+    except (TypeError, ValueError):
+        pass
+
+    # source name
+    sources = sorted(WAVELENGTHS.keys())
+    matched = next(
+        (k for k in sources if k.lower() == str(w).strip().lower()), None
+    )
+    if matched is None:
+        raise ValueError(
+            f"Unknown X-ray source '{w}'. "
+            f"Allowed sources are: {', '.join(sources)}."
+        )
+    return WAVELENGTHS[matched]
 
 
 # -----------------------
@@ -133,47 +174,87 @@ def _get_wavelength(energy_or_source):
 
 def run_mud(args):
     path = Path(args.xray_data)
-    pattern = _load_pattern(path)
+
+    wavelength = resolve_wavelength(args.wavelength)
+    pattern = _load_pattern(path, args.xtype, wavelength)
 
     corr = compute_cve(pattern, args.mud, method=args.method, xtype=args.xtype)
+    _attach_credit_metadata(corr, args)
     corrected = apply_corr(pattern, corr)
+    corrected.name = f"Absorption corrected input_data: {pattern.name}"
+
     _attach_credit_metadata(corrected, args)
-    _save_corrected(corrected, path, args.target_dir, args.force)
+    _save_corrected(corrected, path, args.target_dir, args.force, args.xtype)
+
+    if args.output_correction:
+        _save_correction(corr, path, args.target_dir, args.force, args.xtype)
 
 
 def run_zscan(args):
     pattern_path = Path(args.xray_data)
     zscan_path = Path(args.zscan_file)
 
-    # Compute mud from z-scan file
-    mud = compute_mud(zscan_path)
+    wavelength = resolve_wavelength(args.wavelength)
 
-    pattern = _load_pattern(pattern_path)
+    mud = compute_mud(zscan_path)
+    print(f"Computed mu*D = {mud:.4f} from z-scan file")
+
+    pattern = _load_pattern(pattern_path, args.xtype, wavelength)
     corr = compute_cve(pattern, mud, method=args.method, xtype=args.xtype)
+    _attach_credit_metadata(corr, args)
     corrected = apply_corr(pattern, corr)
+    corrected.name = f"Absorption corrected input_data: {pattern.name}"
+
     _attach_credit_metadata(corrected, args)
-    _save_corrected(corrected, pattern_path, args.target_dir, args.force)
+    _save_corrected(
+        corrected, pattern_path, args.target_dir, args.force, args.xtype
+    )
+
+    if args.output_correction:
+        _save_correction(
+            corr, pattern_path, args.target_dir, args.force, args.xtype
+        )
 
 
 def run_sample(args):
     path = Path(args.xray_data)
 
-    # Get wavelength from energy or source
-    wavelength = _get_wavelength(args.energy)
+    wavelength = resolve_wavelength(args.wavelength)
 
-    # Convert wavelength to energy in keV for xraydb
+    # Convert wavelength (Å) to energy (keV)
     energy_kev = 12.398 / wavelength
 
-    # Compute mu*d from sample parameters
     mud = compute_mu_using_xraydb(
-        args.composition, energy_kev, sample_mass_density=args.density
+        args.composition,
+        energy_kev,
+        args.density,
+    )
+    print(
+        f"Computed mu*D = {mud:.4f} for {args.composition} "
+        f"at λ = {wavelength:.4f} Å"
     )
 
-    pattern = _load_pattern(path, wavelength=wavelength)
+    pattern = _load_pattern(path, args.xtype, wavelength)
     corr = compute_cve(pattern, mud, method=args.method, xtype=args.xtype)
+    _attach_credit_metadata(corr, args)
     corrected = apply_corr(pattern, corr)
+    corrected.name = f"Absorption corrected input_data: {pattern.name}"
+
     _attach_credit_metadata(corrected, args)
-    _save_corrected(corrected, path, args.target_dir, args.force)
+    _save_corrected(corrected, path, args.target_dir, args.force, args.xtype)
+
+    if args.output_correction:
+        _save_correction(corr, path, args.target_dir, args.force, args.xtype)
+
+
+def add_positional_wavelength(parser):
+    parser.add_argument(
+        "wavelength",
+        help=(
+            "X-ray wavelength in angstroms (numeric) or X-ray source name "
+            f"(allowed: {', '.join(sorted(WAVELENGTHS.keys()))})."
+        ),
+    )
 
 
 # -----------------------
@@ -187,8 +268,8 @@ def create_parser(use_gui=False):
         prog="labpdfproc",
         description=(
             "Apply absorption corrections to laboratory X-ray diffraction "
-            "data prior to PDF analysis. "
-            "Supports manual mu*d, z-scan, or sample-based corrections."
+            "data prior to PDF analysis. Supports manual mu*d, "
+            "z-scan, or sample-based corrections."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -205,6 +286,7 @@ def create_parser(use_gui=False):
         help="Input X-ray diffraction data file",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
+    add_positional_wavelength(mud_parser)
     mud_parser.add_argument("mud", type=float, help="mu*d value")
     _add_common_args(mud_parser, use_gui)
 
@@ -219,6 +301,7 @@ def create_parser(use_gui=False):
         help="Input X-ray diffraction data file",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
+    add_positional_wavelength(zscan_parser)
     zscan_parser.add_argument(
         "zscan_file",
         help="Z-scan measurement file",
@@ -237,20 +320,13 @@ def create_parser(use_gui=False):
         help="Input X-ray diffraction data file",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
+    add_positional_wavelength(sample_parser)
     sample_parser.add_argument(
-        "--composition", required=True, help="Chemical formula, e.g. Fe2O3"
+        "composition",
+        help="Chemical formula, e.g. Fe2O3",
     )
     sample_parser.add_argument(
-        "--energy",
-        required=True,
-        help=(
-            "Incident X-ray energy in keV (numeric) or known "
-            "source (CuKa, MoKa, etc.)"
-        ),
-    )
-    sample_parser.add_argument(
-        "--density",
-        required=True,
+        "density",
         type=float,
         help="Sample mass density in g/cm^3",
     )
