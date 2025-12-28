@@ -538,6 +538,6 @@ def load_metadata(args, filepath):
     metadata = copy.deepcopy(vars(args))
     for key in METADATA_KEYS_TO_EXCLUDE:
         metadata.pop(key, None)
-    metadata["input_directory"] = str(filepath)
+    metadata["input_file"] = str(filepath)
     metadata["output_directory"] = str(metadata["output_directory"])
     return metadata
