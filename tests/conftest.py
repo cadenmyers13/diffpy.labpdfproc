@@ -1,7 +1,16 @@
 import json
+import shutil
 from pathlib import Path
 
 import pytest
+
+EXAMPLE_DATA_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "doc"
+    / "source"
+    / "examples"
+    / "example-data"
+)
 
 
 @pytest.fixture
@@ -13,6 +22,8 @@ def user_filesystem(tmp_path):
     home_dir.mkdir(parents=True, exist_ok=True)
     test_dir = base_dir / "test_dir"
     test_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = base_dir / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     chi_data = (
         "dataformat = twotheta\n mode = "
@@ -84,3 +95,29 @@ def user_filesystem(tmp_path):
         f.write(z_scan_data)
 
     yield tmp_path
+
+
+@pytest.fixture
+def temp_output_dir(user_filesystem):
+    """Return the output directory from user_filesystem."""
+    return user_filesystem / "output"
+
+
+@pytest.fixture
+def real_data_file(user_filesystem):
+    ceo2_diffraction_data = EXAMPLE_DATA_DIR / "CeO2_635um_accum_0.xy"
+    real_diffraction_file = user_filesystem / "CeO2_635um_accum_0.xy"
+    shutil.copy(ceo2_diffraction_data, real_diffraction_file)
+    return real_diffraction_file
+
+
+@pytest.fixture
+def real_zscan_file(user_filesystem):
+    zscan_data = (
+        EXAMPLE_DATA_DIR / "CeO2_635um_zscan_200umSlit_chanClose_exported.xy"
+    )
+    real_zscan_file = (
+        user_filesystem / "CeO2_635um_zscan_200umSlit_chanClose_exported.xy"
+    )
+    shutil.copy(zscan_data, real_zscan_file)
+    return real_zscan_file
