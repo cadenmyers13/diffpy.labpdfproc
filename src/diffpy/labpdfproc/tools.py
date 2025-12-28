@@ -46,6 +46,13 @@ METADATA_KEYS_TO_EXCLUDE = [
     "theoretical_from_density",
     "theoretical_from_packing",
     "subcommand",
+    "mud_value",
+    "target_dir",
+    "xray_data",
+    "energy",
+    "sample_composition",
+    "sample_mass_density",
+    "zscan_file",
 ]
 
 

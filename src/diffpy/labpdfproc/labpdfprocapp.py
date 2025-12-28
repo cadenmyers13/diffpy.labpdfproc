@@ -235,7 +235,7 @@ def resolve_wavelength(wavelength):
     return WAVELENGTHS[matched]
 
 
-def _prepare_args(args, input_path):
+def get_metadata_from_args(args, input_path):
     """Prepare args by loading metadata, user info, and package info."""
     args_copy = argparse.Namespace(**vars(args))
     args_copy.output_directory = (
@@ -258,7 +258,7 @@ def run_mud(args):
     path = Path(args.xray_data)
     wavelength = resolve_wavelength(args.wavelength)
     args.mud = args.mud_value
-    metadata = _prepare_args(args, path)
+    metadata = get_metadata_from_args(args, path)
     pattern = _load_pattern(path, args.xtype, wavelength, metadata)
     correction = compute_cve(
         pattern, args.mud, method=args.method, xtype=args.xtype
@@ -281,7 +281,7 @@ def run_zscan(args):
     print(f"Computed mu*D = {mud:.4f} from z-scan file")
     args.mud = mud
     args.z_scan_file = str(zscan_path)
-    metadata = _prepare_args(args, pattern_path)
+    metadata = get_metadata_from_args(args, pattern_path)
     pattern = _load_pattern(pattern_path, args.xtype, wavelength, metadata)
     correction = compute_cve(
         pattern, mud, method=args.method, xtype=args.xtype
@@ -313,7 +313,7 @@ def run_sample(args):
     args.sample_composition = args.composition
     args.sample_mass_density = args.density
     args.energy = energy_kev
-    metadata = _prepare_args(args, path)
+    metadata = get_metadata_from_args(args, path)
     pattern = _load_pattern(path, args.xtype, wavelength, metadata)
     correction = compute_cve(
         pattern, mud, method=args.method, xtype=args.xtype
