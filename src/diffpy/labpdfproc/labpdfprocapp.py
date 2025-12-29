@@ -5,19 +5,26 @@ from pathlib import Path
 from gooey import Gooey, GooeyParser
 
 from diffpy.labpdfproc.functions import CVE_METHODS, apply_corr, compute_cve
-from diffpy.labpdfproc.tools import WAVELENGTHS, load_metadata
+from diffpy.labpdfproc.tools import (
+    WAVELENGTHS,
+    load_metadata,
+    preprocessing_args,
+)
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
 from diffpy.utils.parsers.loaddata import loadData
-from diffpy.utils.tools import (
-    check_and_build_global_config,
-    compute_mu_using_xraydb,
-    compute_mud,
-    get_package_info,
-    get_user_info,
-)
+from diffpy.utils.tools import compute_mu_using_xraydb, compute_mud
 
 
 def _add_common_args(parser, use_gui=False):
+    parser.add_argument(
+        "-w",
+        "--wavelength",
+        help=(
+            "X-ray wavelength in angstroms (numeric) or X-ray source name "
+            f"(allowed: {', '.join(sorted(WAVELENGTHS.keys()))})."
+        ),
+        default=None,
+    )
     parser.add_argument(
         "-x",
         "--xtype",
@@ -40,8 +47,8 @@ def _add_common_args(parser, use_gui=False):
         choices=CVE_METHODS,
     )
     parser.add_argument(
-        "-t",
-        "--target-dir",
+        "-o",
+        "--output-directory",
         help=(
             "Directory to save corrected files (created if needed). "
             "Defaults to current directory."
@@ -111,57 +118,8 @@ def _add_credit_args(parser, use_gui=False):
     )
 
 
-def _load_user_metadata(args):
-    """Load user-provided key=value metadata pairs into args."""
-    if not args.user_metadata:
-        return args
-    reserved_keys = set(vars(args).keys())
-    for item in args.user_metadata:
-        if "=" not in item:
-            raise ValueError(
-                "Please provide key-value pairs in the format key=value. "
-                "For more information, use `labpdfproc --help`."
-            )
-        items = item.split("=")
-        key = items[0].strip()
-        value = "=".join(items[1:]).strip() if len(items) > 1 else ""
-        if key in reserved_keys:
-            raise ValueError(
-                f"{key} is a reserved name. "
-                f"Please use a different key name."
-            )
-        if hasattr(args, key):
-            raise ValueError(f"Duplicate key: {key}.")
-        setattr(args, key, value)
-    return args
-
-
-def _load_user_info(args):
-    """Load user info from config or prompt if not provided."""
-    if args.username is None or args.email is None:
-        check_and_build_global_config()
-    config = get_user_info(
-        owner_name=args.username,
-        owner_email=args.email,
-        owner_orcid=args.orcid,
-    )
-    args.username = config.get("owner_name")
-    args.email = config.get("owner_email")
-    args.orcid = config.get("owner_orcid")
-    return args
-
-
-def _load_package_info(args):
-    """Load package info into args."""
-    metadata = get_package_info("diffpy.labpdfproc")
-    setattr(args, "package_info", metadata["package_info"])
-    return args
-
-
 def _save_corrected(corrected, input_path, args):
-    target_dir = Path(args.target_dir) if args.target_dir else Path.cwd()
-    target_dir.mkdir(parents=True, exist_ok=True)
-    outfile = target_dir / (input_path.stem + "_corrected.chi")
+    outfile = args.output_directory / (input_path.stem + "_corrected.chi")
     if outfile.exists() and not args.force:
         print(f"WARNING: {outfile} exists. Use --force to overwrite.")
         return
@@ -171,9 +129,7 @@ def _save_corrected(corrected, input_path, args):
 
 
 def _save_correction(correction, input_path, args):
-    target_dir = Path(args.target_dir) if args.target_dir else Path.cwd()
-    target_dir.mkdir(parents=True, exist_ok=True)
-    corrfile = target_dir / (input_path.stem + "_cve.chi")
+    corrfile = args.output_directory / (input_path.stem + "_cve.chi")
     if corrfile.exists() and not args.force:
         print(f"WARNING: {corrfile} exists. Use --force to overwrite.")
         return
@@ -231,19 +187,6 @@ def resolve_wavelength(wavelength):
     return WAVELENGTHS[matched]
 
 
-def get_metadata_from_args(args, input_path):
-    """Prepare args by loading metadata, user info, and package info."""
-    args_copy = argparse.Namespace(**vars(args))
-    args_copy.output_directory = (
-        Path(args.target_dir) if args.target_dir else Path.cwd()
-    )
-    args_copy = _load_user_metadata(args_copy)
-    args_copy = _load_user_info(args_copy)
-    args_copy = _load_package_info(args_copy)
-    metadata = load_metadata(args_copy, input_path)
-    return metadata
-
-
 # -----------------------
 # Subcommand functions
 # -----------------------
@@ -252,10 +195,9 @@ def get_metadata_from_args(args, input_path):
 def run_mud(args):
     """Run mu*d based absorption correction."""
     path = Path(args.xray_data)
-    wavelength = resolve_wavelength(args.wavelength)
     args.mud = args.mud_value
-    metadata = get_metadata_from_args(args, path)
-    pattern = _load_pattern(path, args.xtype, wavelength, metadata)
+    metadata = load_metadata(args, path)
+    pattern = _load_pattern(path, args.xtype, args.wavelength, metadata)
     correction = compute_cve(
         pattern, args.mud, method=args.method, xtype=args.xtype
     )
@@ -277,7 +219,7 @@ def run_zscan(args):
     print(f"Computed mu*D = {mud:.4f} from z-scan file")
     args.mud = mud
     args.z_scan_file = str(zscan_path)
-    metadata = get_metadata_from_args(args, pattern_path)
+    metadata = load_metadata(args, pattern_path)
     pattern = _load_pattern(pattern_path, args.xtype, wavelength, metadata)
     correction = compute_cve(
         pattern, mud, method=args.method, xtype=args.xtype
@@ -309,7 +251,7 @@ def run_sample(args):
     args.sample_composition = args.composition
     args.sample_mass_density = args.density
     args.energy = energy_kev
-    metadata = get_metadata_from_args(args, path)
+    metadata = load_metadata(args, path)
     pattern = _load_pattern(path, args.xtype, wavelength, metadata)
     correction = compute_cve(
         pattern, mud, method=args.method, xtype=args.xtype
@@ -321,16 +263,6 @@ def run_sample(args):
     _save_corrected(corrected_data, path, args)
     if args.output_correction:
         _save_correction(correction, path, args)
-
-
-def add_positional_wavelength(parser):
-    parser.add_argument(
-        "wavelength",
-        help=(
-            "X-ray wavelength in angstroms (numeric) or X-ray source name "
-            f"(allowed: {', '.join(sorted(WAVELENGTHS.keys()))})."
-        ),
-    )
 
 
 # -----------------------
@@ -364,7 +296,6 @@ def create_parser(use_gui=False):
         help="Input X-ray diffraction data file.",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
-    add_positional_wavelength(mud_parser)
     mud_parser.add_argument(
         "mud_value", type=float, help="mu*d value", metavar="mud"
     )
@@ -381,7 +312,6 @@ def create_parser(use_gui=False):
         help="Input X-ray diffraction data file.",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
-    add_positional_wavelength(zscan_parser)
     zscan_parser.add_argument(
         "zscan_file",
         help=(
@@ -405,7 +335,6 @@ def create_parser(use_gui=False):
         help="Input X-ray diffraction data file.",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
-    add_positional_wavelength(sample_parser)
     sample_parser.add_argument(
         "composition",
         help="Chemical formula, e.g. Fe2O3",
@@ -444,7 +373,7 @@ def get_args_cli(override=None):
 def main():
     use_gui = len(sys.argv) == 1 or "--gui" in sys.argv
     args = get_args_gui() if use_gui else get_args_cli()
-
+    args = preprocessing_args(args)
     if args.command == "mud":
         run_mud(args)
     elif args.command == "zscan":
