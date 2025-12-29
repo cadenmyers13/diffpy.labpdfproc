@@ -17,10 +17,10 @@ sources = sorted(WAVELENGTHS.keys())
 @pytest.mark.parametrize(
     "wavelength,expected",
     [
-        # UC1
+        # UC1: user give a numeric wavelength
         # input: wavelength in angstroms, expected: same value
         (1.54, 1.54),
-        # UC2
+        # UC2: user give a known radiation source
         # input: radiation source, expected: corresponding wavelength in Å
         ("MoKa1", 0.70930),
     ],
@@ -32,7 +32,8 @@ def test_resolve_wavelength(wavelength, expected):
 
 @pytest.mark.parametrize(
     "bad_wavelength, expected",
-    [
+    [  # bad UC1: user give a non-numeric, non-known source
+        # input: invalid string, expected: ValueError error message
         (
             "invalid_source",
             "Unknown X-ray source 'invalid_source'. "
@@ -47,9 +48,12 @@ def test_resolve_wavelength_bad(bad_wavelength, expected):
     assert actual == expected
 
 
+# UC: user corrects data with mud value
+# input: input arguments for run_mud function
+# expected: correct metadata in output file
 def test_run_mud(real_data_file, temp_output_dir):
     """Test that metadata is correctly stored after running run_mud."""
-    args = Namespace(
+    input_args = Namespace(
         xray_data=str(real_data_file),
         wavelength="CuKa1",
         mud_value=2.5,
@@ -63,7 +67,7 @@ def test_run_mud(real_data_file, temp_output_dir):
         orcid="0000-0001-2345-6789",
         command="mud",
     )
-    run_mud(args)
+    run_mud(input_args)
     output_file = temp_output_dir / "CeO2_635um_accum_0_corrected.chi"
     actual_raw = loadData(output_file, headers=True)
     # drop keys for test simplicity
@@ -92,8 +96,11 @@ def test_run_mud(real_data_file, temp_output_dir):
     assert actual == expected
 
 
+# UC: user corrects data with sample composition and density
+# input: input arguments for run_sample function
+# expected: correct metadata in output file
 def test_run_sample(real_data_file, temp_output_dir):
-    args = Namespace(
+    input_args = Namespace(
         xray_data=str(real_data_file),
         wavelength="Mo",
         xtype="tth",
@@ -108,7 +115,7 @@ def test_run_sample(real_data_file, temp_output_dir):
         density=1,  # arbitrary density
         command="sample",
     )
-    run_sample(args)
+    run_sample(input_args)
     output_file = temp_output_dir / "CeO2_635um_accum_0_corrected.chi"
     actual_raw = loadData(output_file, headers=True)
     # drop keys for test simplicity
@@ -140,8 +147,11 @@ def test_run_sample(real_data_file, temp_output_dir):
     assert actual == expected
 
 
+# UC: user corrects data with z-scan file
+# input: input arguments for run_zscan function
+# expected: correct metadata in output file
 def test_run_zscan(real_data_file, real_zscan_file, temp_output_dir):
-    args = Namespace(
+    input_args = Namespace(
         xray_data=str(real_data_file),
         zscan_file=str(real_zscan_file),
         wavelength="Mo",
@@ -155,7 +165,7 @@ def test_run_zscan(real_data_file, real_zscan_file, temp_output_dir):
         orcid="0000-0001-2345-6789",
         command="zscan",
     )
-    run_zscan(args)
+    run_zscan(input_args)
     output_file = temp_output_dir / "CeO2_635um_accum_0_corrected.chi"
     actual_raw = loadData(output_file, headers=True)
     # drop keys for test simplicity
@@ -179,7 +189,7 @@ def test_run_zscan(real_data_file, real_zscan_file, temp_output_dir):
         # metadata from user
         "facility": "NSLS-II",
         "beamline": "28-ID-2",
-        # sample-specific metadata
+        # zscan-specific metadata
         "command": "zscan",
         "z_scan_file": str(real_zscan_file),
     }
