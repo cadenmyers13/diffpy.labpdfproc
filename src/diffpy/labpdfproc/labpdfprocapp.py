@@ -16,10 +16,6 @@ from diffpy.utils.tools import (
     get_user_info,
 )
 
-# -----------------------
-# Helper functions
-# -----------------------
-
 
 def _add_common_args(parser, use_gui=False):
     parser.add_argument(
@@ -360,10 +356,12 @@ def create_parser(use_gui=False):
     # -----------------------
     # MUD parser
     # -----------------------
-    mud_parser = subp.add_parser("mud", help="Correct using known mu*d value")
+    mud_parser = subp.add_parser(
+        "mud", help="Correct diffraction data using known mu*d value"
+    )
     mud_parser.add_argument(
         "xray_data",
-        help="Input X-ray diffraction data file",
+        help="Input X-ray diffraction data file.",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
     add_positional_wavelength(mud_parser)
@@ -376,17 +374,21 @@ def create_parser(use_gui=False):
     # ZSCAN parser
     # -----------------------
     zscan_parser = subp.add_parser(
-        "zscan", help="Correct using a z-scan measurement"
+        "zscan", help="Correct diffraction data using a z-scan measurement"
     )
     zscan_parser.add_argument(
         "xray_data",
-        help="Input X-ray diffraction data file",
+        help="Input X-ray diffraction data file.",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
     add_positional_wavelength(zscan_parser)
     zscan_parser.add_argument(
         "zscan_file",
-        help="Z-scan measurement file",
+        help=(
+            "Z-scan measurement file. "
+            "See diffpy.labpdfproc documentation for more information on "
+            "what a z-scan file is."
+        ),
         **({"widget": "FileChooser"} if use_gui else {}),
     )
     _add_common_args(zscan_parser, use_gui)
@@ -395,11 +397,12 @@ def create_parser(use_gui=False):
     # SAMPLE parser
     # -----------------------
     sample_parser = subp.add_parser(
-        "sample", help="Correct using sample composition/density"
+        "sample",
+        help="Correct diffraction data using sample composition/density",
     )
     sample_parser.add_argument(
         "xray_data",
-        help="Input X-ray diffraction data file",
+        help="Input X-ray diffraction data file.",
         **({"widget": "FileChooser"} if use_gui else {}),
     )
     add_positional_wavelength(sample_parser)
@@ -410,7 +413,7 @@ def create_parser(use_gui=False):
     sample_parser.add_argument(
         "density",
         type=float,
-        help="Sample mass density in g/cm^3",
+        help="Sample mass density when loaded in the capillary (g/cm^3)",
     )
     _add_common_args(sample_parser, use_gui)
 
