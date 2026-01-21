@@ -34,7 +34,6 @@ def _create_args(**kwargs):
         "theoretical_from_packing": None,
         "output_directory": None,
         "wavelength": None,
-        "anode_type": None,
         "xtype": "tth",
         "method": "polynomial_interpolation",
         "output_correction": False,
@@ -56,7 +55,7 @@ def _create_args(**kwargs):
         # https://github.com/diffpy/diffpy.labpdfproc/issues/48.
         # This test covers existing single input file, directory,
         # a file list, and multiple files.
-        # We store absolute path into input_file
+        # We store absolute path into input_directory
         # and file names into input_file.
         (  # C1: single good file in the current directory,
             # expect to return the absolute Path of the file
@@ -220,66 +219,61 @@ def test_set_output_directory_bad(user_filesystem):
 
 
 @pytest.mark.parametrize(
-    "wavelength, anode_type, expected",
+    "wavelength, expected",
     [
         # Test with only a home config file (no local config),
         # expect to return values directly from args
-        # if either wavelength or anode type is specified,
+        # if wavelength is specified,
         # otherwise update args with values from the home config file
-        # (wavelength=0.3, no anode type).
+        # (wavelength=0.3).
         # This test only checks loading behavior,
         # not value validation (which is handled by `set_wavelength`).
         # C1: no args, expect to update arg values from home config
-        (None, None, {"wavelength": 0.3, "anode_type": None}),
+        (None, {"wavelength": 0.3}),
         # C2: wavelength provided, expect to return args unchanged
-        (0.25, None, {"wavelength": 0.25, "anode_type": None}),
-        # C3: anode type provided, expect to return args unchanged
-        (None, "Mo", {"wavelength": None, "anode_type": "Mo"}),
-        # C4: both wavelength and anode type provided,
-        # expect to return args unchanged
-        (0.7, "Mo", {"wavelength": 0.7, "anode_type": "Mo"}),
+        (0.25, {"wavelength": 0.25}),
+        # C3: wavelength string provided, expect to return args unchanged
+        ("Mo", {"wavelength": "Mo"}),
+        # C4: numeric wavelength provided, expect to return args unchanged
+        (0.7, {"wavelength": 0.7}),
     ],
 )
 def test_load_wavelength_from_config_file_with_home_conf_file(
-    mocker, user_filesystem, wavelength, anode_type, expected
+    mocker, user_filesystem, wavelength, expected
 ):
     cwd = Path(user_filesystem)
     home_dir = cwd / "home_dir"
     mocker.patch("pathlib.Path.home", lambda _: home_dir)
     os.chdir(cwd)
 
-    actual_args = _create_args(
-        wavelength=wavelength, anode_type=anode_type, mud=2.5
-    )
+    actual_args = _create_args(wavelength=wavelength, mud=2.5)
     actual_args = load_wavelength_from_config_file(actual_args)
     assert actual_args.wavelength == expected["wavelength"]
-    assert actual_args.anode_type == expected["anode_type"]
 
 
 @pytest.mark.parametrize(
-    "wavelength, anode_type, expected",
+    "wavelength, expected",
     [
         # Test when a local config file exists,
         # expect to return values directly from args
-        # if either wavelength or anode type is specified,
+        # if wavelength is specified,
         # otherwise update args with values from the local config file
-        # (wavelength=0.6, no anode type).
+        # (wavelength=0.6).
         # Results should be the same whether if the home config exists.
         # This test only checks loading behavior,
         # not value validation (which is handled by `set_wavelength`).
         # C1: no args, expect to update arg values from local config
-        (None, None, {"wavelength": 0.6, "anode_type": None}),
+        (None, {"wavelength": 0.6}),
         # C2: wavelength provided, expect to return args unchanged
-        (0.25, None, {"wavelength": 0.25, "anode_type": None}),
-        # C3: anode type provided, expect to return args unchanged
-        (None, "Mo", {"wavelength": None, "anode_type": "Mo"}),
-        # C4: both wavelength and anode type provided,
-        # expect to return args unchanged
-        (0.7, "Mo", {"wavelength": 0.7, "anode_type": "Mo"}),
+        (0.25, {"wavelength": 0.25}),
+        # C3: wavelength string provided, expect to return args unchanged
+        ("Mo", {"wavelength": "Mo"}),
+        # C4: numeric wavelength provided, expect to return args unchanged
+        (0.7, {"wavelength": 0.7}),
     ],
 )
 def test_load_wavelength_from_config_file_with_local_conf_file(
-    mocker, user_filesystem, wavelength, anode_type, expected
+    mocker, user_filesystem, wavelength, expected
 ):
     cwd = Path(user_filesystem)
     home_dir = cwd / "home_dir"
@@ -289,39 +283,35 @@ def test_load_wavelength_from_config_file_with_local_conf_file(
     with open(cwd / "diffpyconfig.json", "w") as f:
         json.dump(local_config_data, f)
 
-    actual_args = _create_args(
-        wavelength=wavelength, anode_type=anode_type, mud=2.5
-    )
+    actual_args = _create_args(wavelength=wavelength, mud=2.5)
     actual_args = load_wavelength_from_config_file(actual_args)
     assert actual_args.wavelength == expected["wavelength"]
-    assert actual_args.anode_type == expected["anode_type"]
 
     # remove home config file, expect the same results
     confile = home_dir / "diffpyconfig.json"
     os.remove(confile)
     assert actual_args.wavelength == expected["wavelength"]
-    assert actual_args.anode_type == expected["anode_type"]
 
 
 @pytest.mark.parametrize(
-    "wavelength, anode_type, expected",
+    "wavelength, expected",
     [
         # Test when no config files exist,
         # expect to return args without modification.
         # This test only checks loading behavior,
         # not value validation (which is handled by `set_wavelength`).
         # C1: no args
-        (None, None, {"wavelength": None, "anode_type": None}),
-        # C1: wavelength provided
-        (0.25, None, {"wavelength": 0.25, "anode_type": None}),
-        # C2: anode type provided
-        (None, "Mo", {"wavelength": None, "anode_type": "Mo"}),
-        # C4: both wavelength and anode type provided
-        (0.7, "Mo", {"wavelength": 0.7, "anode_type": "Mo"}),
+        (None, {"wavelength": None}),
+        # C2: wavelength provided
+        (0.25, {"wavelength": 0.25}),
+        # C3: wavelength string provided
+        ("Mo", {"wavelength": "Mo"}),
+        # C4: numeric wavelength provided
+        (0.7, {"wavelength": 0.7}),
     ],
 )
 def test_load_wavelength_from_config_file_without_conf_files(
-    mocker, user_filesystem, wavelength, anode_type, expected
+    mocker, user_filesystem, wavelength, expected
 ):
     cwd = Path(user_filesystem)
     home_dir = cwd / "home_dir"
@@ -330,109 +320,90 @@ def test_load_wavelength_from_config_file_without_conf_files(
     confile = home_dir / "diffpyconfig.json"
     os.remove(confile)
 
-    actual_args = _create_args(
-        wavelength=wavelength, anode_type=anode_type, mud=2.5
-    )
+    actual_args = _create_args(wavelength=wavelength, mud=2.5)
     actual_args = load_wavelength_from_config_file(actual_args)
     assert actual_args.wavelength == expected["wavelength"]
-    assert actual_args.anode_type == expected["anode_type"]
-
-
-@pytest.mark.parametrize(
-    "anode_type, expected",
-    [
-        # C1: only a valid anode type was entered (case independent),
-        # expect to match the corresponding wavelength
-        # and preserve the correct case anode type
-        ("Mo", {"wavelength": 0.71073, "anode_type": "Mo"}),
-        ("MoKa1", {"wavelength": 0.70930, "anode_type": "MoKa1"}),
-        ("MoKa1Ka2", {"wavelength": 0.71073, "anode_type": "MoKa1Ka2"}),
-        ("Ag", {"wavelength": 0.56087, "anode_type": "Ag"}),
-        ("AgKa1", {"wavelength": 0.55941, "anode_type": "AgKa1"}),
-        ("AgKa1Ka2", {"wavelength": 0.56087, "anode_type": "AgKa1Ka2"}),
-        ("Cu", {"wavelength": 1.54184, "anode_type": "Cu"}),
-        ("CuKa1", {"wavelength": 1.54056, "anode_type": "CuKa1"}),
-        ("CuKa1Ka2", {"wavelength": 1.54184, "anode_type": "CuKa1Ka2"}),
-        ("moKa1Ka2", {"wavelength": 0.71073, "anode_type": "MoKa1Ka2"}),
-        ("ag", {"wavelength": 0.56087, "anode_type": "Ag"}),
-        ("cuka1", {"wavelength": 1.54056, "anode_type": "CuKa1"}),
-    ],
-)
-def test_set_wavelength_anode(anode_type, expected):
-    actual_args = _create_args(anode_type=anode_type, mud=2.5)
-    actual_args = set_wavelength(actual_args)
-    assert actual_args.wavelength == expected["wavelength"]
-    assert actual_args.anode_type == expected["anode_type"]
 
 
 @pytest.mark.parametrize(
     "wavelength, expected",
     [
-        # C2: a valid wavelength was entered,
-        # expect to include the wavelength only and anode type is None
-        (0.25, {"wavelength": 0.25, "anode_type": None}),
+        # Test valid wavelength string (anode type) conversions
+        # expect to match the corresponding wavelength
+        ("Mo", 0.71073),
+        ("MoKa1", 0.70930),
+        ("MoKa1Ka2", 0.71073),
+        ("Ag", 0.56087),
+        ("AgKa1", 0.55941),
+        ("AgKa1Ka2", 0.56087),
+        ("Cu", 1.54184),
+        ("CuKa1", 1.54056),
+        ("CuKa1Ka2", 1.54184),
+        ("moKa1Ka2", 0.71073),  # case insensitive
+        ("ag", 0.56087),  # case insensitive
+        ("cuka1", 1.54056),  # case insensitive
     ],
 )
-def test_set_wavelength_value(wavelength, expected):
+def test_set_wavelength_string(wavelength, expected):
     actual_args = _create_args(wavelength=wavelength, mud=2.5)
     actual_args = set_wavelength(actual_args)
-    assert actual_args.wavelength == expected["wavelength"]
-    assert actual_args.anode_type == expected["anode_type"]
-
-
-def test_set_wavelength_none_tth():
-    # C3: nothing passed in, but mu*D was provided and xtype is on tth
-    # expect wavelength and anode type to be None
-    # and program proceeds without error
-    actual_args = _create_args(xtype="tth", mud=2.5)
-    actual_args = set_wavelength(actual_args)
-    assert actual_args.wavelength is None
-    assert actual_args.anode_type is None
+    assert actual_args.wavelength == expected
 
 
 @pytest.mark.parametrize(
-    "xtype, wavelength, anode_type, expected_error_msg",
+    "wavelength, expected",
+    [
+        # Test numeric wavelength values
+        (0.25, 0.25),
+        (1.54, 1.54),
+        (0.71, 0.71),
+    ],
+)
+def test_set_wavelength_numeric(wavelength, expected):
+    actual_args = _create_args(wavelength=wavelength, mud=2.5)
+    actual_args = set_wavelength(actual_args)
+    assert actual_args.wavelength == expected
+
+
+def test_set_wavelength_none_tth():
+    # nothing passed in, but mu*D was provided and xtype is on tth
+    # expect wavelength to be None and program proceeds without error
+    actual_args = _create_args(xtype="tth", mud=2.5)
+    actual_args = set_wavelength(actual_args)
+    assert actual_args.wavelength is None
+
+
+@pytest.mark.parametrize(
+    "xtype, wavelength, expected_error_msg",
     [
         (  # C1: nothing passed in, xtype is not on tth
-            # expect error asking for either wavelength or anode type
+            # expect error asking for wavelength
             "q",
             None,
-            None,
-            f"Please provide a wavelength or anode type "
+            f"Please provide a wavelength or anode type using -w "
             f"because the independent variable axis is not on two-theta. "
             f"Allowed anode types are {*known_sources, }.",
         ),
-        (  # C2: both wavelength and anode type were specified
-            # expect error asking not to specify both
-            "tth",
-            0.7,
-            "Mo",
-            f"Please provide either a wavelength or an anode type, not both. "
-            f"Allowed anode types are {*known_sources, }.",
-        ),
-        (  # C3: invalid anode type
+        (  # C2: invalid anode type string
             # expect error asking to specify a valid anode type
             "tth",
-            None,
             "invalid",
-            f"Anode type 'invalid' not recognized. "
-            f"Please rerun specifying an anode_type from {*known_sources, }.",
+            "Anode type 'invalid' not recognized. "
+            "Please rerun specifying an anode type using -w "
+            f"from {*known_sources, }.",
         ),
-        (  # C4: invalid wavelength
+        (  # C3: invalid wavelength (negative)
             # expect error asking to specify a valid wavelength or anode type
             "tth",
             -0.2,
-            None,
             "Wavelength = -0.2 is not valid. "
-            "Please rerun specifying a known anode_type "
+            "Please rerun specifying a known anode type "
             "or a positive wavelength.",
         ),
     ],
 )
-def test_set_wavelength_bad(xtype, wavelength, anode_type, expected_error_msg):
-    actual_args = _create_args(
-        xtype=xtype, wavelength=wavelength, anode_type=anode_type, mud=2.5
-    )
+def test_set_wavelength_bad(xtype, wavelength, expected_error_msg):
+    actual_args = _create_args(xtype=xtype, wavelength=wavelength, mud=2.5)
     with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
         actual_args = set_wavelength(actual_args)
 
@@ -471,8 +442,8 @@ def test_set_xtype_bad():
         # C2: user provides a z-scan file, expect to estimate through the file
         (None, "test_dir/testfile.xy", None, 3),
         # C3: user specifies sample composition, energy,
-        # and sample mass density,
-        # both with and without whitespaces, expect to estimate theoretically
+        # and sample mass density, both with and without whitespaces,
+        # expect to estimate theoretically
         (None, None, "ZrO2,17.45,1.2", 1.49),
         (None, None, "ZrO2, 17.45, 1.2", 1.49),
     ],
@@ -489,6 +460,34 @@ def test_set_mud(
     )
     actual_args = set_mud(actual_args)
     assert actual_args.mud == pytest.approx(expected_mud, rel=1e-4, abs=0.1)
+
+
+def test_set_mud_from_mud(user_filesystem):
+    cwd = Path(user_filesystem)
+    os.chdir(cwd)
+    expected = 2.5
+    args = _create_args(mud=expected)
+    args = set_mud(args)
+    actual = args.mud
+    assert actual == expected
+
+
+def test_set_mud_from_zscan_file(user_filesystem):
+    cwd = Path(user_filesystem)
+    os.chdir(cwd)
+    args = _create_args(z_scan_file="test_dir/testfile.xy")
+    args = set_mud(args)
+    expected = 3
+    actual = args.mud
+    assert actual == pytest.approx(expected, rel=1e-4, abs=0.1)
+
+
+def test_set_mud_from_theoretical_density(user_filesystem):
+    cwd = Path(user_filesystem)
+    os.chdir(cwd)
+    args = _create_args(sample_composition="ZrO2", sample_mass_density=7.45)
+    args = set_mud(args)
+    assert args.mud == pytest.approx(1.49, rel=1e-4, abs=0.1)
 
 
 @pytest.mark.parametrize(
@@ -737,7 +736,7 @@ def test_load_package_info(mocker):
 def test_load_metadata(mocker, user_filesystem):
     # Test if the function loads args
     # (which will be loaded into the header file).
-    # Expect to include mu*D, anode type, xtype, cve method,
+    # Expect to include mu*D, wavelength, xtype, cve method,
     # user-specified metadata, user info, package info, z-scan file,
     # and full paths for current input and output directories.
     cwd = Path(user_filesystem)
@@ -753,7 +752,7 @@ def test_load_metadata(mocker, user_filesystem):
     actual_args = _create_args(
         input=["."],
         mud=2.5,
-        anode_type="Mo",
+        wavelength="Mo",
         user_metadata=["key=value"],
         username="cli_username",
         email="cli@email.com",
@@ -764,8 +763,7 @@ def test_load_metadata(mocker, user_filesystem):
         actual_metadata = load_metadata(actual_args, filepath)
         expected_metadata = {
             "mud": 2.5,
-            "input_file": str(filepath),
-            "anode_type": "Mo",
+            "input_directory": str(filepath),
             "output_directory": str(Path.cwd().resolve()),
             "xtype": "tth",
             "method": "polynomial_interpolation",

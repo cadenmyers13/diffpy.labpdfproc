@@ -1,6 +1,5 @@
 import argparse
 import sys
-from pathlib import Path
 
 from gooey import Gooey, GooeyParser
 
@@ -12,7 +11,6 @@ from diffpy.labpdfproc.tools import (
 )
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
 from diffpy.utils.parsers.loaddata import loadData
-from diffpy.utils.tools import compute_mu_using_xraydb, compute_mud
 
 
 def _add_common_args(parser, use_gui=False):
@@ -21,7 +19,8 @@ def _add_common_args(parser, use_gui=False):
         "--wavelength",
         help=(
             "X-ray wavelength in angstroms (numeric) or X-ray source name "
-            f"(allowed: {', '.join(sorted(WAVELENGTHS.keys()))})."
+            f"(allowed: {', '.join(sorted(WAVELENGTHS.keys()))}). "
+            "Will be loaded from config files if not specified."
         ),
         default=None,
     )
@@ -151,123 +150,23 @@ def _load_pattern(path, xtype, wavelength, metadata):
     )
 
 
-def resolve_wavelength(wavelength):
-    """Resolve wavelength from user input.
-
-    Parameters
-    ----------
-    wavelength : str or float
-        User input for wavelength. Can be numeric (in Angstroms) or
-        a string X-ray source name (e.g. 'CuKa').
-
-    Returns
-    -------
-    float
-        Wavelength in Angstroms.
-    """
-    if wavelength is None:
-        raise ValueError(
-            "X-ray wavelength must be provided as a positional argument "
-            "after the diffraction data file."
+def _process_files(args):
+    """Process all input files with absorption correction."""
+    for path in args.input_paths:
+        metadata = load_metadata(args, path)
+        pattern = _load_pattern(path, args.xtype, args.wavelength, metadata)
+        correction = compute_cve(
+            pattern, args.mud, method=args.method, xtype=args.xtype
         )
-    try:
-        return float(wavelength)
-    except (TypeError, ValueError):
-        pass
-    sources = sorted(WAVELENGTHS.keys())
-    matched = next(
-        (k for k in sources if k.lower() == str(wavelength).strip().lower()),
-        None,
-    )
-    if matched is None:
-        raise ValueError(
-            f"Unknown X-ray source '{wavelength}'. "
-            f"Allowed sources are: {', '.join(sources)}."
+        correction.metadata = metadata.copy()
+        corrected_data = apply_corr(pattern, correction)
+        corrected_data.name = (
+            f"Absorption corrected input_data: {pattern.name}"
         )
-    return WAVELENGTHS[matched]
-
-
-# -----------------------
-# Subcommand functions
-# -----------------------
-
-
-def run_mud(args):
-    """Run mu*d based absorption correction."""
-    path = Path(args.xray_data)
-    args.mud = args.mud_value
-    metadata = load_metadata(args, path)
-    pattern = _load_pattern(path, args.xtype, args.wavelength, metadata)
-    correction = compute_cve(
-        pattern, args.mud, method=args.method, xtype=args.xtype
-    )
-    correction.metadata = metadata.copy()
-    corrected_data = apply_corr(pattern, correction)
-    corrected_data.name = f"Absorption corrected input_data: {pattern.name}"
-    corrected_data.metadata = metadata.copy()
-    _save_corrected(corrected_data, path, args)
-    if args.output_correction:
-        _save_correction(correction, path, args)
-
-
-def run_zscan(args):
-    """Run z-scan based absorption correction."""
-    pattern_path = Path(args.xray_data)
-    zscan_path = Path(args.zscan_file)
-    wavelength = resolve_wavelength(args.wavelength)
-    mud = compute_mud(zscan_path)
-    print(f"Computed mu*D = {mud:.4f} from z-scan file")
-    args.mud = mud
-    args.z_scan_file = str(zscan_path)
-    metadata = load_metadata(args, pattern_path)
-    pattern = _load_pattern(pattern_path, args.xtype, wavelength, metadata)
-    correction = compute_cve(
-        pattern, mud, method=args.method, xtype=args.xtype
-    )
-    correction.metadata = metadata.copy()
-    corrected_data = apply_corr(pattern, correction)
-    corrected_data.name = f"Absorption corrected input_data: {pattern.name}"
-    corrected_data.metadata = metadata.copy()
-    _save_corrected(corrected_data, pattern_path, args)
-    if args.output_correction:
-        _save_correction(correction, pattern_path, args)
-
-
-def run_sample(args):
-    """Run sample composition/density based absorption correction."""
-    path = Path(args.xray_data)
-    wavelength = resolve_wavelength(args.wavelength)
-    energy_kev = 12.398 / wavelength  # Convert Å to keV
-    mud = compute_mu_using_xraydb(
-        args.composition,
-        energy_kev,
-        args.density,
-    )
-    print(
-        f"Computed mu*D = {mud:.4f} for {args.composition} "
-        f"at λ = {wavelength:.4f} Å"
-    )
-    args.mud = mud
-    args.sample_composition = args.composition
-    args.sample_mass_density = args.density
-    args.energy = energy_kev
-    metadata = load_metadata(args, path)
-    pattern = _load_pattern(path, args.xtype, wavelength, metadata)
-    correction = compute_cve(
-        pattern, mud, method=args.method, xtype=args.xtype
-    )
-    correction.metadata = metadata.copy()
-    corrected_data = apply_corr(pattern, correction)
-    corrected_data.name = f"Absorption corrected input_data: {pattern.name}"
-    corrected_data.metadata = metadata.copy()
-    _save_corrected(corrected_data, path, args)
-    if args.output_correction:
-        _save_correction(correction, path, args)
-
-
-# -----------------------
-# Parser construction
-# -----------------------
+        corrected_data.metadata = metadata.copy()
+        _save_corrected(corrected_data, path, args)
+        if args.output_correction:
+            _save_correction(correction, path, args)
 
 
 def create_parser(use_gui=False):
@@ -285,73 +184,73 @@ def create_parser(use_gui=False):
         dest="command", required=True, title="Correction method"
     )
 
-    # -----------------------
     # MUD parser
-    # -----------------------
     mud_parser = subp.add_parser(
         "mud", help="Correct diffraction data using known mu*d value"
     )
     mud_parser.add_argument(
-        "xray_data",
-        help="Input X-ray diffraction data file.",
-        **({"widget": "FileChooser"} if use_gui else {}),
+        "input",
+        nargs="+",
+        help=(
+            "Input X-ray diffraction data file(s) or directory. "
+            "Can specify multiple files, directories, or use wildcards."
+        ),
+        **({"widget": "MultiFileChooser"} if use_gui else {}),
     )
     mud_parser.add_argument(
         "mud_value", type=float, help="mu*d value", metavar="mud"
     )
     _add_common_args(mud_parser, use_gui)
 
-    # -----------------------
     # ZSCAN parser
-    # -----------------------
     zscan_parser = subp.add_parser(
         "zscan", help="Correct diffraction data using a z-scan measurement"
     )
     zscan_parser.add_argument(
-        "xray_data",
-        help="Input X-ray diffraction data file.",
-        **({"widget": "FileChooser"} if use_gui else {}),
+        "input",
+        nargs="+",
+        help=(
+            "Input X-ray diffraction data file(s) or directory. "
+            "Can specify multiple files, directories, or use wildcards."
+        ),
+        **({"widget": "MultiFileChooser"} if use_gui else {}),
     )
     zscan_parser.add_argument(
-        "zscan_file",
+        "z_scan_file",
         help=(
             "Z-scan measurement file. "
-            "See diffpy.labpdfproc documentation for more information on "
-            "what a z-scan file is."
+            "See diffpy.labpdfproc documentation for more information."
         ),
         **({"widget": "FileChooser"} if use_gui else {}),
     )
     _add_common_args(zscan_parser, use_gui)
 
-    # -----------------------
     # SAMPLE parser
-    # -----------------------
     sample_parser = subp.add_parser(
         "sample",
         help="Correct diffraction data using sample composition/density",
     )
     sample_parser.add_argument(
-        "xray_data",
-        help="Input X-ray diffraction data file.",
-        **({"widget": "FileChooser"} if use_gui else {}),
+        "input",
+        nargs="+",
+        help=(
+            "Input X-ray diffraction data file(s) or directory. "
+            "Can specify multiple files, directories, or use wildcards."
+        ),
+        **({"widget": "MultiFileChooser"} if use_gui else {}),
     )
     sample_parser.add_argument(
-        "composition",
+        "sample_composition",
         help="Chemical formula, e.g. Fe2O3",
     )
     sample_parser.add_argument(
-        "density",
+        "sample_mass_density",
         type=float,
-        help="Sample mass density when loaded in the capillary (g/cm^3)",
+        help="Sample mass density in capillary (g/cm^3)",
     )
     _add_common_args(sample_parser, use_gui)
 
     return parser
-
-
-# -----------------------
-# CLI / GUI dispatch
-# -----------------------
 
 
 @Gooey(
@@ -373,15 +272,10 @@ def get_args_cli(override=None):
 def main():
     use_gui = len(sys.argv) == 1 or "--gui" in sys.argv
     args = get_args_gui() if use_gui else get_args_cli()
-    args = preprocessing_args(args)
     if args.command == "mud":
-        run_mud(args)
-    elif args.command == "zscan":
-        run_zscan(args)
-    elif args.command == "sample":
-        run_sample(args)
-    else:
-        raise ValueError(f"Unknown command: {args.command}")
+        args.mud = args.mud_value
+    args = preprocessing_args(args)
+    _process_files(args)
 
 
 if __name__ == "__main__":
