@@ -239,7 +239,7 @@ def set_wavelength(args):
     if args.wavelength is None:
         if args.xtype not in ANGLEQUANTITIES:
             raise ValueError(
-                f"Please provide a wavelength or anode type using -w "
+                f"Please provide a wavelength or anode type "
                 f"because the independent variable axis is not on two-theta. "
                 f"Allowed anode types are {*known_sources, }."
             )
@@ -253,7 +253,7 @@ def set_wavelength(args):
         if matched is None:
             raise ValueError(
                 f"Anode type '{args.wavelength}' not recognized. "
-                f"Please rerun specifying an anode type using -w "
+                f"Please rerun specifying an anode type "
                 f"from {*known_sources, }."
             )
         args.wavelength = WAVELENGTHS[matched]
@@ -492,7 +492,6 @@ def load_package_info(args):
     return args
 
 
-# Update preprocessing_args to handle the new CLI structure:
 def preprocessing_args(args):
     """Perform preprocessing on the provided args. The process includes loading
     package and user information, setting input, output, wavelength, anode

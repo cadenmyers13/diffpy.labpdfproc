@@ -6,11 +6,29 @@ from gooey import Gooey, GooeyParser
 from diffpy.labpdfproc.functions import CVE_METHODS, apply_corr, compute_cve
 from diffpy.labpdfproc.tools import (
     WAVELENGTHS,
+    known_sources,
     load_metadata,
     preprocessing_args,
 )
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
 from diffpy.utils.parsers.loaddata import loadData
+
+
+def _wavelength_type(value):
+    """Parse wavelength as float or named source (case-insensitive)."""
+    try:
+        return float(value)
+    except ValueError:
+        key = value.lower()
+        wavelengths = {k.lower(): v for k, v in WAVELENGTHS.items()}
+        try:
+            return wavelengths[key]
+        except KeyError:
+            raise ValueError(
+                f"Anode type 'invalid' not recognized. "
+                "Please rerun specifying an anode type from "
+                f"{*known_sources, }."
+            )
 
 
 def _add_common_args(parser, use_gui=False):
@@ -23,6 +41,7 @@ def _add_common_args(parser, use_gui=False):
             "Will be loaded from config files if not specified."
         ),
         default=None,
+        type=_wavelength_type,
     )
     parser.add_argument(
         "-x",
