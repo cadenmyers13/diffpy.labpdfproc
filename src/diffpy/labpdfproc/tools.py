@@ -239,12 +239,12 @@ def load_wavelength_from_config_file(args):
             "For more information, please refer to www.diffpy.org/"
             "diffpy.labpdfproc/examples/toolsexample.html"
         )
-    args = normalize_wavelength(args)
-    if args.wavelength:
-        return args
+    if args.wavelength is not None:
+        return normalize_wavelength(args)
     config = local_config if local_has_data else global_config
     if config:
-        args.wavelength = args.wavelength or config.get("wavelength")
+        args.wavelength = config.get("wavelength")
+        return normalize_wavelength(args)
     return args
 
 
@@ -527,6 +527,7 @@ def preprocessing_args(args):
     args : argparse.Namespace
         The updated argparse Namespace with arguments preprocessed.
     """
+    args = load_wavelength_from_config_file(args)
     args = set_mud(args)
     args = set_input_lists(args)
     args = set_output_directory(args)
