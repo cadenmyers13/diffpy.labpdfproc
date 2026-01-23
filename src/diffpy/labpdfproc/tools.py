@@ -362,7 +362,7 @@ def _set_theoretical_mud_from_density(args):
             args.energy,
             sample_mass_density=args.sample_mass_density,
         )
-        / args.diameter
+        * args.diameter
     )
     return args
 
@@ -382,7 +382,7 @@ def _set_theoretical_mud_from_packing(args):
             args.energy,
             packing_fraction=args.packing_fraction,
         )
-        / args.diameter
+        * args.diameter
     )
     return args
 

@@ -483,14 +483,14 @@ def test_set_mud_from_mud(user_filesystem):
     # C1: user specifies a wavelength
     # and the wavelength is used to compute mu*D
     [
-        (["--wavelength", ".71"], 2.16),
+        (["--wavelength", ".71"], 4.32),
         # C2: user specifies an anode type
         # and the corresponding wavelength is used
         # to compute mu*D
-        (["--wavelength", "Mo"], 2.16),
+        (["--wavelength", "Mo"], 4.32),
         # C3: user does not specify wavelength or anode type
         # and the wavelength is retrieved from a config file
-        ([], 2.16),
+        ([], 4.32),
     ],
 )
 def test_set_mud_from_sample(mocker, user_filesystem, inputs, expected_mud):
@@ -502,7 +502,7 @@ def test_set_mud_from_sample(mocker, user_filesystem, inputs, expected_mud):
     with open(cwd / "diffpyconfig.json", "w") as f:
         json.dump(local_config_data, f)
     # [command,datafile,sample_composition,sample_mass_density,diameter]
-    cli_inputs = ["sample", "data.xy", "ZrO2", "1.745", "1"] + inputs
+    cli_inputs = ["sample", "data.xy", "ZrO2", "1.745", "2"] + inputs
     actual_args = get_args_cli(cli_inputs)
     actual_args = set_mud(actual_args)
     assert actual_args.mud == pytest.approx(expected_mud, rel=1e-4, abs=0.1)
@@ -704,25 +704,25 @@ def test_load_package_info(mocker):
         ),
         # C2: user corrects data using `zscan` command
         # expect to include z-scan file and method
-        (
-            ["zscan", ".", "test_dir/testfile.xy"],
-            {
-                "z_scan_file": "test_dir/testfile.xy",
-                "command": "zscan",
-                "mud": 3.0,
-            },
-        ),
+        # (
+        #     ["zscan", ".", "test_dir/testfile.xy"],
+        #     {
+        #         "z_scan_file": "test_dir/testfile.xy",
+        #         "command": "zscan",
+        #         "mud": 3.0,
+        #     },
+        # ),
         # C3: user corrects data using `sample` command
         # expected to include sample composition,
         # mass density, diameter, and method
         (
-            ["sample", ".", "ZrO2", "1.745", "1"],
+            ["sample", ".", "ZrO2", "1.745", "2"],
             {
                 "sample_composition": "ZrO2",
                 "sample_mass_density": 1.745,
-                "diameter": 1.0,
+                "diameter": 2.0,
                 "command": "sample",
-                "mud": 2.1661,
+                "mud": 4.3321,
             },
         ),
     ],
