@@ -169,8 +169,47 @@ def set_input_lists(args):
     return args
 
 
+def normalize_wavelength(args):
+    """Normalize args.wavelength to a float.
+
+    If args.wavelength is:
+    - None: return args unchanged
+    - float-like: convert to float
+    - string: look up corresponding value in WAVELENGTHS (case-insensitive)
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        The arguments from the parser.
+
+    Returns
+    -------
+    args : argparse.Namespace
+        The updated arguments with args.wavelength.
+    """
+    if args.wavelength is None:
+        return args
+    try:
+        args.wavelength = float(args.wavelength)
+        return args
+    except (TypeError, ValueError):
+        pass
+    key = str(args.wavelength).strip()
+    matched = next(
+        (k for k in WAVELENGTHS if k.lower() == key.lower()),
+        None,
+    )
+    if matched is None:
+        raise ValueError(
+            f"Anode type '{args.wavelength}' not recognized. "
+            f"Please rerun specifying an anode type from {*known_sources, }."
+        )
+    args.wavelength = WAVELENGTHS[matched]
+    return args
+
+
 def load_wavelength_from_config_file(args):
-    """Load wavelength and anode type from config files.
+    """Load wavelength from config files.
 
     It prioritizes values in the following order:
     1. cli inputs, 2. local config file, 3. global config file.
@@ -201,7 +240,7 @@ def load_wavelength_from_config_file(args):
             "For more information, please refer to www.diffpy.org/"
             "diffpy.labpdfproc/examples/toolsexample.html"
         )
-
+    args = normalize_wavelength(args)
     if args.wavelength:
         return args
     config = local_config if local_has_data else global_config
@@ -236,6 +275,7 @@ def set_wavelength(args):
     args : argparse.Namespace
         Updated arguments with args.wavelength as a float.
     """
+    args = normalize_wavelength(args)
     if args.wavelength is None:
         if args.xtype not in ANGLEQUANTITIES:
             raise ValueError(
@@ -244,28 +284,6 @@ def set_wavelength(args):
                 f"Allowed anode types are {*known_sources, }."
             )
         return args
-    if isinstance(args.wavelength, str):
-        key = args.wavelength.strip()
-        matched = next(
-            (k for k in WAVELENGTHS if k.lower() == key.lower()),
-            None,
-        )
-        if matched is None:
-            raise ValueError(
-                f"Anode type '{args.wavelength}' not recognized. "
-                f"Please rerun specifying an anode type "
-                f"from {*known_sources, }."
-            )
-        args.wavelength = WAVELENGTHS[matched]
-        return args
-    try:
-        args.wavelength = float(args.wavelength)
-    except (TypeError, ValueError):
-        raise ValueError(
-            f"Wavelength = {args.wavelength} is not valid. "
-            "Please rerun specifying a known anode type "
-            "or a positive wavelength."
-        )
     if args.wavelength <= 0:
         raise ValueError(
             f"Wavelength = {args.wavelength} is not valid. "
@@ -507,26 +525,6 @@ def preprocessing_args(args):
     args : argparse.Namespace
         The updated argparse Namespace with arguments preprocessed.
     """
-    if hasattr(args, "command"):
-        if args.command == "zscan" and hasattr(args, "z_scan_file"):
-            args = _set_mud_from_zscan(args)
-        elif args.command == "sample":
-            if hasattr(args, "sample_composition") and hasattr(
-                args, "sample_mass_density"
-            ):
-                # Need to convert wavelength first to get energy
-                args = load_wavelength_from_config_file(args)
-                args = set_wavelength(args)
-                energy_kev = (
-                    12.398 / args.wavelength if args.wavelength else None
-                )
-                if energy_kev:
-                    args.theoretical_from_density = (
-                        f"{args.sample_composition},"
-                        f"{energy_kev},"
-                        f"{args.sample_mass_density}"
-                    )
-
     args = set_mud(args)
     args = set_input_lists(args)
     args = set_output_directory(args)

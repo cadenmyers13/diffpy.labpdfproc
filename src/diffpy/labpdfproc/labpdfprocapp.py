@@ -6,29 +6,13 @@ from gooey import Gooey, GooeyParser
 from diffpy.labpdfproc.functions import CVE_METHODS, apply_corr, compute_cve
 from diffpy.labpdfproc.tools import (
     WAVELENGTHS,
-    known_sources,
     load_metadata,
+    load_wavelength_from_config_file,
     preprocessing_args,
+    set_wavelength,
 )
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
 from diffpy.utils.parsers.loaddata import loadData
-
-
-def _wavelength_type(value):
-    """Parse wavelength as float or named source (case-insensitive)."""
-    try:
-        return float(value)
-    except ValueError:
-        key = value.lower()
-        wavelengths = {k.lower(): v for k, v in WAVELENGTHS.items()}
-        try:
-            return wavelengths[key]
-        except KeyError:
-            raise ValueError(
-                f"Anode type 'invalid' not recognized. "
-                "Please rerun specifying an anode type from "
-                f"{*known_sources, }."
-            )
 
 
 def _add_common_args(parser, use_gui=False):
@@ -41,7 +25,6 @@ def _add_common_args(parser, use_gui=False):
             "Will be loaded from config files if not specified."
         ),
         default=None,
-        type=_wavelength_type,
     )
     parser.add_argument(
         "-x",
@@ -169,7 +152,7 @@ def _load_pattern(path, xtype, wavelength, metadata):
     )
 
 
-def _process_files(args):
+def apply_absorption_correction(args):
     """Process all input files with absorption correction."""
     for path in args.input_paths:
         metadata = load_metadata(args, path)
@@ -272,6 +255,27 @@ def create_parser(use_gui=False):
     return parser
 
 
+def _handle_command_specific_args(args):
+    """Convert command-specific arguments to unified format."""
+    if args.command == "mud":
+        args.mud = args.mud_value
+    elif args.command == "sample":
+        # Convert sample args to theoretical_from_density format
+        args = load_wavelength_from_config_file(args)
+        args = set_wavelength(args)
+        energy_kev = 12.398 / args.wavelength if args.wavelength else None
+        if energy_kev:
+            args.theoretical_from_density = (
+                f"{args.sample_composition},"
+                f"{energy_kev},"
+                f"{args.sample_mass_density}"
+            )
+    elif args.command == "zscan":
+        # Z-scan handling will be done in preprocessing_args via set_mud
+        pass
+    return args
+
+
 @Gooey(
     program_name="labpdfproc",
     required_cols=1,
@@ -291,10 +295,9 @@ def get_args_cli(override=None):
 def main():
     use_gui = len(sys.argv) == 1 or "--gui" in sys.argv
     args = get_args_gui() if use_gui else get_args_cli()
-    if args.command == "mud":
-        args.mud = args.mud_value
+    args = _handle_command_specific_args(args)
     args = preprocessing_args(args)
-    _process_files(args)
+    apply_absorption_correction(args)
 
 
 if __name__ == "__main__":

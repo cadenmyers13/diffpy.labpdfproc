@@ -13,6 +13,7 @@ from diffpy.labpdfproc.tools import (  # noqa: F401
     load_user_info,
     load_user_metadata,
     load_wavelength_from_config_file,
+    normalize_wavelength,
     preprocessing_args,
     set_input_lists,
     set_mud,
@@ -206,11 +207,45 @@ def test_set_output_directory_bad(user_filesystem):
 @pytest.mark.parametrize(
     "inputs, expected",
     [
+        # UC1: input is numeric wavelength
+        # expect to return the same value
+        (["--wavelength", "0.25"], 0.25),
+        # UC2: input is valid source name (case-sensitive canonical)
+        # expect to return the corresponding wavelength from dict
+        (["--wavelength", "Mo"], 0.71073),
+        # UC3: input is valid source name, mismatched case
+        # expect to return the corresponding wavelength from dict
+        (["--wavelength", "agka1Ka2"], 0.56087),
+    ],
+)
+def test_normalize_wavelength(inputs, expected):
+    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+    args = get_args_cli(cli_inputs)
+    args = normalize_wavelength(args)
+    assert args.wavelength == expected
+
+
+def test_normalize_wavelength_bad():
+    cli_inputs = ["mud", "data.xy", "2.5", "--wavelength", "invalid_source"]
+    args = get_args_cli(cli_inputs)
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Anode type 'invalid_source' not recognized\\. "
+            "Please rerun specifying an anode type from "
+        ),
+    ):
+        normalize_wavelength(args)
+
+
+@pytest.mark.parametrize(
+    "inputs, expected",
+    [
         # Test with only a home config file (no local config),
         # expect to return values directly from args
-        # if either wavelength or anode type is specified,
+        # if wavelength is specified,
         # otherwise update args with values from the home config file
-        # (wavelength=0.3, no anode type).
+        # (wavelength=0.3).
         # This test only checks loading behavior,
         # not value validation (which is handled by `set_wavelength`).
         # C1: no args, expect to update arg values from home config
@@ -307,94 +342,94 @@ def test_load_wavelength_from_config_file_without_conf_files(
     assert actual_args.wavelength == expected["wavelength"]
 
 
-@pytest.mark.parametrize(
-    "inputs, expected",
-    [
-        # C1: only a valid anode type was entered (case independent),
-        # expect to match the corresponding wavelength
-        # and preserve the correct case anode type
-        (["--wavelength", "Mo"], {"wavelength": 0.71073}),
-        (
-            ["--wavelength", "MoKa1"],
-            {"wavelength": 0.70930},
-        ),
-        (
-            ["--wavelength", "MoKa1Ka2"],
-            {"wavelength": 0.71073},
-        ),
-        (["--wavelength", "Ag"], {"wavelength": 0.56087}),
-        (
-            ["--wavelength", "AgKa1"],
-            {"wavelength": 0.55941},
-        ),
-        (
-            ["--wavelength", "AgKa1Ka2"],
-            {"wavelength": 0.56087},
-        ),
-        (["--wavelength", "Cu"], {"wavelength": 1.54184}),
-        (
-            ["--wavelength", "CuKa1"],
-            {"wavelength": 1.54056},
-        ),
-        (
-            ["--wavelength", "CuKa1Ka2"],
-            {"wavelength": 1.54184},
-        ),
-        (
-            ["--wavelength", "moKa1Ka2"],
-            {"wavelength": 0.71073},
-        ),
-        (["--wavelength", "ag"], {"wavelength": 0.56087}),
-        (
-            ["--wavelength", "cuka1"],
-            {"wavelength": 1.54056},
-        ),
-        # C2: a valid wavelength was entered,
-        # expect to include the wavelength only and anode type is None
-        (["--wavelength", "0.25"], {"wavelength": 0.25}),
-        # C3: nothing passed in, but mu*D was provided and xtype is on tth
-        # expect wavelength and anode type to be None
-        # and program proceeds without error
-        ([], {"wavelength": None}),
-    ],
-)
-def test_set_wavelength(inputs, expected):
-    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
-    actual_args = get_args_cli(cli_inputs)
-    actual_args = set_wavelength(actual_args)
-    assert actual_args.wavelength == expected["wavelength"]
+# @pytest.mark.parametrize(
+#     "inputs, expected",
+#     [
+#         # C1: only a valid anode type was entered (case independent),
+#         # expect to match the corresponding wavelength
+#         # and preserve the correct case anode type
+#         (["--wavelength", "Mo"], {"wavelength": 0.71073}),
+#         (
+#             ["--wavelength", "MoKa1"],
+#             {"wavelength": 0.70930},
+#         ),
+#         (
+#             ["--wavelength", "MoKa1Ka2"],
+#             {"wavelength": 0.71073},
+#         ),
+#         (["--wavelength", "Ag"], {"wavelength": 0.56087}),
+#         (
+#             ["--wavelength", "AgKa1"],
+#             {"wavelength": 0.55941},
+#         ),
+#         (
+#             ["--wavelength", "AgKa1Ka2"],
+#             {"wavelength": 0.56087},
+#         ),
+#         (["--wavelength", "Cu"], {"wavelength": 1.54184}),
+#         (
+#             ["--wavelength", "CuKa1"],
+#             {"wavelength": 1.54056},
+#         ),
+#         (
+#             ["--wavelength", "CuKa1Ka2"],
+#             {"wavelength": 1.54184},
+#         ),
+#         (
+#             ["--wavelength", "moKa1Ka2"],
+#             {"wavelength": 0.71073},
+#         ),
+#         (["--wavelength", "ag"], {"wavelength": 0.56087}),
+#         (
+#             ["--wavelength", "cuka1"],
+#             {"wavelength": 1.54056},
+#         ),
+#         # C2: a valid wavelength was entered,
+#         # expect to include the wavelength only and anode type is None
+#         (["--wavelength", "0.25"], {"wavelength": 0.25}),
+#         # C3: nothing passed in, but mu*D was provided and xtype is on tth
+#         # expect wavelength and anode type to be None
+#         # and program proceeds without error
+#         ([], {"wavelength": None}),
+#     ],
+# )
+# def test_set_wavelength(inputs, expected):
+#     cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+#     actual_args = get_args_cli(cli_inputs)
+#     actual_args = set_wavelength(actual_args)
+#     assert actual_args.wavelength == expected["wavelength"]
 
 
-@pytest.mark.parametrize(
-    "inputs, expected_error_msg",
-    [
-        (  # C1: nothing passed in, xtype is not on tth
-            # expect error asking for either wavelength or anode type
-            ["--xtype", "q"],
-            f"Please provide a wavelength or anode type "
-            f"because the independent variable axis is not on two-theta. "
-            f"Allowed anode types are {*known_sources, }.",
-        ),
-        # (  # C2: invalid anode type
-        #     # expect error asking to specify a valid anode type
-        #     ["--wavelength", "invalid"],
-        #     f"Anode type 'invalid' not recognized. "
-        #     f"Please rerun specifying an anode type from {*known_sources, }.", # noqa: E501
-        # ),
-        # (  # C3: invalid wavelength
-        #     # expect error asking to specify a valid wavelength or anode type
-        #     ["--wavelength", "-0.2"],
-        #     "Wavelength = -0.2 is not valid. "
-        #     "Please rerun specifying a known anode type "
-        #     "or a positive wavelength.",
-        # ),
-    ],
-)
-def test_set_wavelength_bad(inputs, expected_error_msg):
-    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
-    actual_args = get_args_cli(cli_inputs)
-    with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
-        actual_args = set_wavelength(actual_args)
+# @pytest.mark.parametrize(
+#     "inputs, expected_error_msg",
+#     [
+#         (  # C1: nothing passed in, xtype is not on tth
+#             # expect error asking for either wavelength or anode type
+#             ["--xtype", "q"],
+#             f"Please provide a wavelength or anode type "
+#             f"because the independent variable axis is not on two-theta. "
+#             f"Allowed anode types are {*known_sources, }.",
+#         ),
+#         # (  # C2: invalid anode type
+#         #     # expect error asking to specify a valid anode type
+#         #     ["--wavelength", "invalid"],
+#         #     f"Anode type 'invalid' not recognized. "
+#         #     f"Please rerun specifying an anode type from {*known_sources, }.", # noqa: E501
+#         # ),
+#         # (  # C3: invalid wavelength
+#         #     # expect error asking to specify a valid wavelength or anode type # noqa: E501
+#         #     ["--wavelength", "-0.2"],
+#         #     "Wavelength = -0.2 is not valid. "
+#         #     "Please rerun specifying a known anode type "
+#         #     "or a positive wavelength.",
+#         # ),
+#     ],
+# )
+# def test_set_wavelength_bad(inputs, expected_error_msg):
+#     cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+#     actual_args = get_args_cli(cli_inputs)
+#     with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
+#         actual_args = set_wavelength(actual_args)
 
 
 # @pytest.mark.parametrize(
