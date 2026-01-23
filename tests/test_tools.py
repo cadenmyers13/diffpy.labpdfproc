@@ -342,123 +342,130 @@ def test_load_wavelength_from_config_file_without_conf_files(
     assert actual_args.wavelength == expected["wavelength"]
 
 
-# @pytest.mark.parametrize(
-#     "inputs, expected",
-#     [
-#         # C1: only a valid anode type was entered (case independent),
-#         # expect to match the corresponding wavelength
-#         # and preserve the correct case anode type
-#         (["--wavelength", "Mo"], {"wavelength": 0.71073}),
-#         (
-#             ["--wavelength", "MoKa1"],
-#             {"wavelength": 0.70930},
-#         ),
-#         (
-#             ["--wavelength", "MoKa1Ka2"],
-#             {"wavelength": 0.71073},
-#         ),
-#         (["--wavelength", "Ag"], {"wavelength": 0.56087}),
-#         (
-#             ["--wavelength", "AgKa1"],
-#             {"wavelength": 0.55941},
-#         ),
-#         (
-#             ["--wavelength", "AgKa1Ka2"],
-#             {"wavelength": 0.56087},
-#         ),
-#         (["--wavelength", "Cu"], {"wavelength": 1.54184}),
-#         (
-#             ["--wavelength", "CuKa1"],
-#             {"wavelength": 1.54056},
-#         ),
-#         (
-#             ["--wavelength", "CuKa1Ka2"],
-#             {"wavelength": 1.54184},
-#         ),
-#         (
-#             ["--wavelength", "moKa1Ka2"],
-#             {"wavelength": 0.71073},
-#         ),
-#         (["--wavelength", "ag"], {"wavelength": 0.56087}),
-#         (
-#             ["--wavelength", "cuka1"],
-#             {"wavelength": 1.54056},
-#         ),
-#         # C2: a valid wavelength was entered,
-#         # expect to include the wavelength only and anode type is None
-#         (["--wavelength", "0.25"], {"wavelength": 0.25}),
-#         # C3: nothing passed in, but mu*D was provided and xtype is on tth
-#         # expect wavelength and anode type to be None
-#         # and program proceeds without error
-#         ([], {"wavelength": None}),
-#     ],
-# )
-# def test_set_wavelength(inputs, expected):
-#     cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+@pytest.mark.parametrize(
+    "inputs, expected",
+    [
+        # C1: only a valid anode type was entered (case independent),
+        # expect to match the corresponding wavelength
+        (["--wavelength", "Mo"], {"wavelength": 0.71073}),
+        (
+            ["--wavelength", "MoKa1"],
+            {"wavelength": 0.70930},
+        ),
+        (
+            ["--wavelength", "MoKa1Ka2"],
+            {"wavelength": 0.71073},
+        ),
+        (["--wavelength", "Ag"], {"wavelength": 0.56087}),
+        (
+            ["--wavelength", "AgKa1"],
+            {"wavelength": 0.55941},
+        ),
+        (
+            ["--wavelength", "AgKa1Ka2"],
+            {"wavelength": 0.56087},
+        ),
+        (["--wavelength", "Cu"], {"wavelength": 1.54184}),
+        (
+            ["--wavelength", "CuKa1"],
+            {"wavelength": 1.54056},
+        ),
+        (
+            ["--wavelength", "CuKa1Ka2"],
+            {"wavelength": 1.54184},
+        ),
+        (
+            ["--wavelength", "moKa1Ka2"],
+            {"wavelength": 0.71073},
+        ),
+        (["--wavelength", "ag"], {"wavelength": 0.56087}),
+        (
+            ["--wavelength", "cuka1"],
+            {"wavelength": 1.54056},
+        ),
+        # C2: a valid wavelength was entered,
+        (["--wavelength", "0.25"], {"wavelength": 0.25}),
+        # C3: nothing passed in, but mu*D was provided and xtype is on tth
+        # expect wavelength to be None
+        # and program proceeds without error
+        ([], {"wavelength": None}),
+    ],
+)
+def test_set_wavelength(inputs, expected):
+    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = set_wavelength(actual_args)
+    assert actual_args.wavelength == expected["wavelength"]
+
+
+@pytest.mark.parametrize(
+    "inputs, expected_error_msg",
+    [
+        (  # C1: nothing passed in, xtype is not on tth
+            # expect error asking for either wavelength or anode type
+            ["--xtype", "q"],
+            f"Please provide a wavelength or anode type "
+            f"because the independent variable axis is not on two-theta. "
+            f"Allowed anode types are {*known_sources, }.",
+        ),
+        (  # C2: invalid anode type
+            # expect error asking to specify a valid anode type
+            ["--wavelength", "invalid"],
+            f"Anode type 'invalid' not recognized. "
+            f"Please rerun specifying an anode type from {*known_sources, }.",
+        ),
+        (  # C3: invalid wavelength
+            # expect error asking to specify a valid wavelength or anode type
+            ["--wavelength", "-0.2"],
+            "Wavelength = -0.2 is not valid. "
+            "Please rerun specifying a known anode type "
+            "or a positive wavelength.",
+        ),
+    ],
+)
+def test_set_wavelength_bad(inputs, expected_error_msg):
+    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+    actual_args = get_args_cli(cli_inputs)
+    with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
+        actual_args = set_wavelength(actual_args)
+
+
+@pytest.mark.parametrize(
+    "inputs, expected_xtype",
+    [
+        ([], "tth"),
+        (["--xtype", "2theta"], "tth"),
+        (["--xtype", "d"], "d"),
+        (["--xtype", "q"], "q"),
+    ],
+)
+def test_set_xtype(inputs, expected_xtype):
+    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = set_xtype(actual_args)
+    assert actual_args.xtype == expected_xtype
+
+
+def test_set_xtype_bad():
+    cli_inputs = ["mud", "data.xy", "2.5", "--xtype", "invalid"]
+    actual_args = get_args_cli(cli_inputs)
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            f"Unknown xtype: invalid. Allowed xtypes are {*XQUANTITIES, }."
+        ),
+    ):
+        actual_args = set_xtype(actual_args)
+
+
+# def test_set_mud_from_mud(user_filesystem):
+#     cwd = Path(user_filesystem)
+#     os.chdir(cwd)
+#     cli_inputs = ["mud", "data.xy", "2.5"]
 #     actual_args = get_args_cli(cli_inputs)
-#     actual_args = set_wavelength(actual_args)
-#     assert actual_args.wavelength == expected["wavelength"]
-
-
-# @pytest.mark.parametrize(
-#     "inputs, expected_error_msg",
-#     [
-#         (  # C1: nothing passed in, xtype is not on tth
-#             # expect error asking for either wavelength or anode type
-#             ["--xtype", "q"],
-#             f"Please provide a wavelength or anode type "
-#             f"because the independent variable axis is not on two-theta. "
-#             f"Allowed anode types are {*known_sources, }.",
-#         ),
-#         # (  # C2: invalid anode type
-#         #     # expect error asking to specify a valid anode type
-#         #     ["--wavelength", "invalid"],
-#         #     f"Anode type 'invalid' not recognized. "
-#         #     f"Please rerun specifying an anode type from {*known_sources, }.", # noqa: E501
-#         # ),
-#         # (  # C3: invalid wavelength
-#         #     # expect error asking to specify a valid wavelength or anode type # noqa: E501
-#         #     ["--wavelength", "-0.2"],
-#         #     "Wavelength = -0.2 is not valid. "
-#         #     "Please rerun specifying a known anode type "
-#         #     "or a positive wavelength.",
-#         # ),
-#     ],
-# )
-# def test_set_wavelength_bad(inputs, expected_error_msg):
-#     cli_inputs = ["mud", "data.xy", "2.5"] + inputs
-#     actual_args = get_args_cli(cli_inputs)
-#     with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
-#         actual_args = set_wavelength(actual_args)
-
-
-# @pytest.mark.parametrize(
-#     "inputs, expected_xtype",
-#     [
-#         ([], "tth"),
-#         (["--xtype", "2theta"], "tth"),
-#         (["--xtype", "d"], "d"),
-#         (["--xtype", "q"], "q"),
-#     ],
-# )
-# def test_set_xtype(inputs, expected_xtype):
-#     cli_inputs = ["applymud", "data.xy", "--mud", "2.5"] + inputs
-#     actual_args = get_args_cli(cli_inputs)
-#     actual_args = set_xtype(actual_args)
-#     assert actual_args.xtype == expected_xtype
-
-
-# def test_set_xtype_bad():
-#     cli_inputs = ["applymud", "data.xy", "--mud", "2.5", "--xtype", "invalid"] # noqa: E501
-#     actual_args = get_args_cli(cli_inputs)
-#     with pytest.raises(
-#         ValueError,
-#         match=re.escape(
-#             f"Unknown xtype: invalid. Allowed xtypes are {*XQUANTITIES, }."
-#         ),
-#     ):
-#         actual_args = set_xtype(actual_args)
-
+#     actual_args = set_mud(actual_args)
+#     expected_mud = 2.5
+#     assert actual_args.mud == expected_mud
 
 # @pytest.mark.parametrize(
 #     "inputs, expected_mud",

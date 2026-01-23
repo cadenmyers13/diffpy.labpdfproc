@@ -34,7 +34,6 @@ def _add_common_args(parser, use_gui=False):
             f"{', '.join(XQUANTITIES)}"
         ),
         default="tth",
-        choices=XQUANTITIES,
     )
     parser.add_argument(
         "-m",
