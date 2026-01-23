@@ -3,14 +3,6 @@ from pathlib import Path
 
 import pytest
 
-EXAMPLE_DATA_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "doc"
-    / "source"
-    / "examples"
-    / "example-data"
-)
-
 
 @pytest.fixture
 def user_filesystem(tmp_path):
@@ -21,8 +13,6 @@ def user_filesystem(tmp_path):
     home_dir.mkdir(parents=True, exist_ok=True)
     test_dir = base_dir / "test_dir"
     test_dir.mkdir(parents=True, exist_ok=True)
-    output_dir = base_dir / "output"
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     chi_data = (
         "dataformat = twotheta\n mode = "
