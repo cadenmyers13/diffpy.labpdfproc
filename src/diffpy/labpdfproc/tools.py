@@ -39,16 +39,10 @@ known_sources = [key for key in WAVELENGTHS.keys()]
 # and will be written into separate arguments for clarity.
 METADATA_KEYS_TO_EXCLUDE = [
     "output_correction",
-    "force_overwrite",
     "input",
     "input_paths",
-    "wavelength",
-    "theoretical_from_density",
-    "theoretical_from_packing",
-    "subcommand",
-    "command",
     "force",
-    "mud_value",  # duplicate of 'mud'
+    "energy",
 ]
 
 
@@ -560,6 +554,7 @@ def load_metadata(args, filepath):
     metadata = copy.deepcopy(vars(args))
     for key in METADATA_KEYS_TO_EXCLUDE:
         metadata.pop(key, None)
+    metadata["mud"] = round(float(metadata["mud"]), 4)
     metadata["input_directory"] = str(filepath)  # Changed from input_file
     metadata["output_directory"] = str(metadata["output_directory"])
     return metadata

@@ -508,292 +508,276 @@ def test_set_mud_from_sample(mocker, user_filesystem, inputs, expected_mud):
     assert actual_args.mud == pytest.approx(expected_mud, rel=1e-4, abs=0.1)
 
 
-# @pytest.mark.parametrize(
-#     "inputs, expected",
-#     [
-#         # C1: user provides an invalid z-scan file,
-#         # expect FileNotFoundError and message to specify a valid file path
-#         (
-#             ["--z-scan-file", "invalid file"],
-#             [
-#                 FileNotFoundError,
-#                 "Cannot find invalid file. Please specify a valid file path.", # noqa: E501
-#             ],
-#         ),
-#         # C2.1: (sample mass density option)
-#         # user provides fewer than three input values
-#         # expect ValueError with a message indicating the correct format
-#         (
-#             ["--theoretical-from-density", "ZrO2,0.5"],
-#             [
-#                 ValueError,
-#                 "Invalid mu*D input 'ZrO2,0.5'. "
-#                 "Expected format is 'sample composition, energy, "
-#                 "sample mass density or packing fraction' "
-#                 "(e.g., 'ZrO2,17.45,0.5').",
-#             ],
-#         ),
-#         # C2.2: (packing fraction option)
-#         # user provides fewer than three input values
-#         # expect ValueError with a message indicating the correct format
-#         (
-#             ["--theoretical-from-packing", "ZrO2,0.5"],
-#             [
-#                 ValueError,
-#                 "Invalid mu*D input 'ZrO2,0.5'. "
-#                 "Expected format is 'sample composition, energy, "
-#                 "sample mass density or packing fraction' "
-#                 "(e.g., 'ZrO2,17.45,0.5').",
-#             ],
-#         ),
-#         # C3.1: (sample mass density option)
-#         # user provides more than 3 input values
-#         # expect ValueError with a message indicating the correct format
-#         (
-#             ["--theoretical-from-density", "ZrO2,17.45,1.5,0.5"],
-#             [
-#                 ValueError,
-#                 "Invalid mu*D input 'ZrO2,17.45,1.5,0.5'. "
-#                 "Expected format is 'sample composition, energy, "
-#                 "sample mass density or packing fraction' "
-#                 "(e.g., 'ZrO2,17.45,0.5').",
-#             ],
-#         ),
-#         # C3.2: (packing fraction option)
-#         # user provides more than 3 input values
-#         # expect ValueError with a message indicating the correct format
-#         (
-#             ["--theoretical-from-packing", "ZrO2,17.45,1.5,0.5"],
-#             [
-#                 ValueError,
-#                 "Invalid mu*D input 'ZrO2,17.45,1.5,0.5'. "
-#                 "Expected format is 'sample composition, energy, "
-#                 "sample mass density or packing fraction' "
-#                 "(e.g., 'ZrO2,17.45,0.5').",
-#             ],
-#         ),
-#     ],
-# )
-# def test_set_mud_bad(user_filesystem, inputs, expected):
-#     expected_error, expected_error_msg = expected
-#     cwd = Path(user_filesystem)
-#     os.chdir(cwd)
-#     cli_inputs = ["applymud", "data.xy"] + inputs
-#     actual_args = get_args_cli(cli_inputs)
-#     with pytest.raises(expected_error, match=re.escape(expected_error_msg)):
-#         actual_args = set_mud(actual_args)
+@pytest.mark.parametrize(
+    "inputs, expected",
+    [
+        # C1: user provides an invalid z-scan file,
+        # expect FileNotFoundError and message to specify a valid file path
+        (
+            ["invalid file"],
+            [
+                FileNotFoundError,
+                "Cannot find invalid file. Please specify a valid file path.",
+            ],
+        ),
+    ],
+)
+def test_set_mud_bad(user_filesystem, inputs, expected):
+    expected_error, expected_error_msg = expected
+    cwd = Path(user_filesystem)
+    os.chdir(cwd)
+    cli_inputs = ["zscan", "data.xy"] + inputs
+    actual_args = get_args_cli(cli_inputs)
+    with pytest.raises(expected_error, match=re.escape(expected_error_msg)):
+        actual_args = set_mud(actual_args)
 
 
-# @pytest.mark.parametrize(
-#     "inputs, expected",
-#     [
-#         ([], []),
-#         (
-#             [
-#                 "--user-metadata",
-#                 "facility=NSLS II",
-#                 "beamline=28ID-2",
-#                 "favorite color=blue",
-#             ],
-#             [
-#                 ["facility", "NSLS II"],
-#                 ["beamline", "28ID-2"],
-#                 ["favorite color", "blue"],
-#             ],
-#         ),
-#         (["--user-metadata", "x=y=z"], [["x", "y=z"]]),
-#     ],
-# )
-# def test_load_user_metadata(inputs, expected):
-#     expected_args = get_args_cli(["applymud", "data.xy", "--mud", "2.5"])
-#     for expected_pair in expected:
-#         setattr(expected_args, expected_pair[0], expected_pair[1])
-#     delattr(expected_args, "user_metadata")
+@pytest.mark.parametrize(
+    "inputs, expected",
+    [
+        ([], []),
+        (
+            [
+                "--user-metadata",
+                "facility=NSLS II",
+                "beamline=28ID-2",
+                "favorite color=blue",
+            ],
+            [
+                ["facility", "NSLS II"],
+                ["beamline", "28ID-2"],
+                ["favorite color", "blue"],
+            ],
+        ),
+        (["--user-metadata", "x=y=z"], [["x", "y=z"]]),
+    ],
+)
+def test_load_user_metadata(inputs, expected):
+    expected_args = get_args_cli(["mud", "data.xy", "2.5"])
+    for expected_pair in expected:
+        setattr(expected_args, expected_pair[0], expected_pair[1])
+    delattr(expected_args, "user_metadata")
 
-#     cli_inputs = ["applymud", "data.xy", "--mud", "2.5"] + inputs
-#     actual_args = get_args_cli(cli_inputs)
-#     actual_args = load_user_metadata(actual_args)
-#     assert actual_args == expected_args
-
-
-# @pytest.mark.parametrize(
-#     "inputs, expected_error_msg",
-#     [
-#         (
-#             ["--user-metadata", "facility=", "NSLS II"],
-#             "Please provide key-value pairs in the format key=value. "
-#             "For more information, use `labpdfproc --help.`",
-#         ),
-#         (
-#             ["--user-metadata", "favorite", "color=blue"],
-#             "Please provide key-value pairs in the format key=value. "
-#             "For more information, use `labpdfproc --help.`",
-#         ),
-#         (
-#             ["--user-metadata", "beamline", "=", "28ID-2"],
-#             "Please provide key-value pairs in the format key=value. "
-#             "For more information, use `labpdfproc --help.`",
-#         ),
-#         (
-#             ["--user-metadata", "facility=NSLS II", "facility=NSLS III"],
-#             "Please do not specify repeated keys: facility.",
-#         ),
-#         (
-#             ["--user-metadata", "wavelength=2"],
-#             "wavelength is a reserved name. "
-#             "Please rerun using a different key name.",
-#         ),
-#     ],
-# )
-# def test_load_user_metadata_bad(inputs, expected_error_msg):
-#     cli_inputs = ["applymud", "data.xy", "--mud", "2.5"] + inputs
-#     actual_args = get_args_cli(cli_inputs)
-#     with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
-#         actual_args = load_user_metadata(actual_args)
+    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = load_user_metadata(actual_args)
+    assert actual_args == expected_args
 
 
-# @pytest.mark.parametrize(
-#     "inputs, expected",
-#     [  # Test that when cli inputs are present, they override home config,
-#         # otherwise we take home config
-#         (
-#             {"username": None, "email": None, "orcid": None},
-#             {
-#                 "username": "home_username",
-#                 "email": "home@email.com",
-#                 "orcid": "home_orcid",
-#             },
-#         ),
-#         (
-#             {"username": "cli_username", "email": None, "orcid": None},
-#             {
-#                 "username": "cli_username",
-#                 "email": "home@email.com",
-#                 "orcid": "home_orcid",
-#             },
-#         ),
-#         (
-#             {"username": None, "email": "cli@email.com", "orcid": None},
-#             {
-#                 "username": "home_username",
-#                 "email": "cli@email.com",
-#                 "orcid": "home_orcid",
-#             },
-#         ),
-#         (
-#             {"username": None, "email": None, "orcid": "cli_orcid"},
-#             {
-#                 "username": "home_username",
-#                 "email": "home@email.com",
-#                 "orcid": "cli_orcid",
-#             },
-#         ),
-#         (
-#             {
-#                 "username": "cli_username",
-#                 "email": "cli@email.com",
-#                 "orcid": "cli_orcid",
-#             },
-#             {
-#                 "username": "cli_username",
-#                 "email": "cli@email.com",
-#                 "orcid": "cli_orcid",
-#             },
-#         ),
-#     ],
-# )
-# def test_load_user_info(monkeypatch, inputs, expected, user_filesystem):
-#     cwd = Path(user_filesystem)
-#     home_dir = cwd / "home_dir"
-#     monkeypatch.setattr("pathlib.Path.home", lambda _: home_dir)
-#     os.chdir(cwd)
-
-#     cli_inputs = [
-#         "applymud",
-#         "data.xy",
-#         "--mud",
-#         "2.5",
-#         "--username",
-#         inputs["username"],
-#         "--email",
-#         inputs["email"],
-#         "--orcid",
-#         inputs["orcid"],
-#     ]
-#     actual_args = get_args_cli(cli_inputs)
-#     actual_args = load_user_info(actual_args)
-#     assert actual_args.username == expected["username"]
-#     assert actual_args.email == expected["email"]
-#     assert actual_args.orcid == expected["orcid"]
+@pytest.mark.parametrize(
+    "inputs, expected_error_msg",
+    [
+        (
+            ["--user-metadata", "facility=", "NSLS II"],
+            "Please provide key-value pairs in the format key=value. "
+            "For more information, use `labpdfproc --help.`",
+        ),
+        (
+            ["--user-metadata", "favorite", "color=blue"],
+            "Please provide key-value pairs in the format key=value. "
+            "For more information, use `labpdfproc --help.`",
+        ),
+        (
+            ["--user-metadata", "beamline", "=", "28ID-2"],
+            "Please provide key-value pairs in the format key=value. "
+            "For more information, use `labpdfproc --help.`",
+        ),
+        (
+            ["--user-metadata", "facility=NSLS II", "facility=NSLS III"],
+            "Please do not specify repeated keys: facility.",
+        ),
+        (
+            ["--user-metadata", "wavelength=2"],
+            "wavelength is a reserved name. "
+            "Please rerun using a different key name.",
+        ),
+    ],
+)
+def test_load_user_metadata_bad(inputs, expected_error_msg):
+    cli_inputs = ["mud", "data.xy", "2.5"] + inputs
+    actual_args = get_args_cli(cli_inputs)
+    with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
+        actual_args = load_user_metadata(actual_args)
 
 
-# def test_load_package_info(mocker):
-#     mocker.patch(
-#         "importlib.metadata.version",
-#         side_effect=lambda package_name: (
-#             "3.3.0" if package_name == "diffpy.utils" else "1.2.3"
-#         ),
-#     )
-#     cli_inputs = ["applymud", "data.xy", "--mud", "2.5"]
-#     actual_args = get_args_cli(cli_inputs)
-#     actual_args = load_package_info(actual_args)
-#     assert actual_args.package_info == {
-#         "diffpy.labpdfproc": "1.2.3",
-#         "diffpy.utils": "3.3.0",
-#     }
+@pytest.mark.parametrize(
+    "inputs, expected",
+    [  # Test that when cli inputs are present, they override home config,
+        # otherwise we take home config
+        (
+            {"username": None, "email": None, "orcid": None},
+            {
+                "username": "home_username",
+                "email": "home@email.com",
+                "orcid": "home_orcid",
+            },
+        ),
+        (
+            {"username": "cli_username", "email": None, "orcid": None},
+            {
+                "username": "cli_username",
+                "email": "home@email.com",
+                "orcid": "home_orcid",
+            },
+        ),
+        (
+            {"username": None, "email": "cli@email.com", "orcid": None},
+            {
+                "username": "home_username",
+                "email": "cli@email.com",
+                "orcid": "home_orcid",
+            },
+        ),
+        (
+            {"username": None, "email": None, "orcid": "cli_orcid"},
+            {
+                "username": "home_username",
+                "email": "home@email.com",
+                "orcid": "cli_orcid",
+            },
+        ),
+        (
+            {
+                "username": "cli_username",
+                "email": "cli@email.com",
+                "orcid": "cli_orcid",
+            },
+            {
+                "username": "cli_username",
+                "email": "cli@email.com",
+                "orcid": "cli_orcid",
+            },
+        ),
+    ],
+)
+def test_load_user_info(monkeypatch, inputs, expected, user_filesystem):
+    cwd = Path(user_filesystem)
+    home_dir = cwd / "home_dir"
+    monkeypatch.setattr("pathlib.Path.home", lambda _: home_dir)
+    os.chdir(cwd)
+
+    cli_inputs = [
+        "mud",
+        "data.xy",
+        "2.5",
+        "--username",
+        inputs["username"],
+        "--email",
+        inputs["email"],
+        "--orcid",
+        inputs["orcid"],
+    ]
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = load_user_info(actual_args)
+    assert actual_args.username == expected["username"]
+    assert actual_args.email == expected["email"]
+    assert actual_args.orcid == expected["orcid"]
 
 
-# def test_load_metadata(mocker, user_filesystem):
-#     # Test if the function loads args
-#     # (which will be loaded into the header file).
-#     # Expect to include mu*D, anode type, xtype, cve method,
-#     # user-specified metadata, user info, package info, z-scan file,
-#     # and full paths for current input and output directories.
-#     cwd = Path(user_filesystem)
-#     home_dir = cwd / "home_dir"
-#     mocker.patch("pathlib.Path.home", lambda _: home_dir)
-#     os.chdir(cwd)
-#     mocker.patch(
-#         "importlib.metadata.version",
-#         side_effect=lambda package_name: (
-#             "3.3.0" if package_name == "diffpy.utils" else "1.2.3"
-#         ),
-#     )
-#     cli_inputs = [
-#         "applymud",
-#         ".",
-#         "--mud",
-#         "2.5",
-#         "--anode-type",
-#         "Mo",
-#         "--user-metadata",
-#         "key=value",
-#         "--username",
-#         "cli_username",
-#         "--email",
-#         "cli@email.com",
-#         "--orcid",
-#         "cli_orcid",
-#     ]
-#     actual_args = get_args_cli(cli_inputs)
-#     actual_args = preprocessing_args(actual_args)
-#     for filepath in actual_args.input_paths:
-#         actual_metadata = load_metadata(actual_args, filepath)
-#         expected_metadata = {
-#             "mud": 2.5,
-#             "input_directory": str(filepath),
-#             "anode_type": "Mo",
-#             "output_directory": str(Path.cwd().resolve()),
-#             "xtype": "tth",
-#             "method": "polynomial_interpolation",
-#             "key": "value",
-#             "username": "cli_username",
-#             "email": "cli@email.com",
-#             "orcid": "cli_orcid",
-#             "package_info": {
-#                 "diffpy.labpdfproc": "1.2.3",
-#                 "diffpy.utils": "3.3.0",
-#             },
-#             "z_scan_file": None,
-#         }
-#         assert actual_metadata == expected_metadata
+def test_load_package_info(mocker):
+    mocker.patch(
+        "importlib.metadata.version",
+        side_effect=lambda package_name: (
+            "3.3.0" if package_name == "diffpy.utils" else "1.2.3"
+        ),
+    )
+    cli_inputs = ["mud", "data.xy", "2.5"]
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = load_package_info(actual_args)
+    assert actual_args.package_info == {
+        "diffpy.labpdfproc": "1.2.3",
+        "diffpy.utils": "3.3.0",
+    }
+
+
+@pytest.mark.parametrize(
+    "inputs,expected",
+    # C1: user corrects data using `mud` command
+    # expect to include mud value and method
+    [
+        (
+            ["mud", ".", "2.5"],
+            {
+                "mud": 2.5,
+                "command": "mud",
+            },
+        ),
+        # C2: user corrects data using `zscan` command
+        # expect to include z-scan file and method
+        (
+            ["zscan", ".", "test_dir/testfile.xy"],
+            {
+                "z_scan_file": "test_dir/testfile.xy",
+                "command": "zscan",
+                "mud": 3.0,
+            },
+        ),
+        # C3: user corrects data using `sample` command
+        # expected to include sample composition,
+        # mass density, diameter, and method
+        (
+            ["sample", ".", "ZrO2", "1.745", "1"],
+            {
+                "sample_composition": "ZrO2",
+                "sample_mass_density": 1.745,
+                "diameter": 1.0,
+                "command": "sample",
+                "mud": 2.1661,
+            },
+        ),
+    ],
+)
+def test_load_metadata(mocker, user_filesystem, inputs, expected):
+    # Test if the function loads args
+    # (which will be loaded into the header file).
+    # Expect to include mu*D, anode type, xtype, cve method,
+    # user-specified metadata, user info, package info, z-scan file,
+    # and full paths for current input and output directories.
+    cwd = Path(user_filesystem)
+    home_dir = cwd / "home_dir"
+    mocker.patch("pathlib.Path.home", lambda _: home_dir)
+    os.chdir(cwd)
+    mocker.patch(
+        "importlib.metadata.version",
+        side_effect=lambda package_name: (
+            "3.3.0" if package_name == "diffpy.utils" else "1.2.3"
+        ),
+    )
+    cli_inputs = inputs + [
+        "--wavelength",
+        "Mo",
+        "--user-metadata",
+        "key=value",
+        "--username",
+        "cli_username",
+        "--email",
+        "cli@email.com",
+        "--orcid",
+        "cli_orcid",
+    ]
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = preprocessing_args(actual_args)
+    for filepath in actual_args.input_paths:
+        if "z_scan_file" in expected:
+            # adjust path to be relative to cwd
+            expected["z_scan_file"] = str(
+                (cwd / expected["z_scan_file"]).resolve()
+            )
+        actual_metadata = load_metadata(actual_args, filepath)
+        expected_metadata = {
+            "input_directory": str(filepath),
+            "wavelength": 0.71073,
+            "output_directory": str(Path.cwd().resolve()),
+            "xtype": "tth",
+            "method": "polynomial_interpolation",
+            "key": "value",
+            "username": "cli_username",
+            "email": "cli@email.com",
+            "orcid": "cli_orcid",
+            "package_info": {
+                "diffpy.labpdfproc": "1.2.3",
+                "diffpy.utils": "3.3.0",
+            },
+            **expected,
+        }
+        assert actual_metadata == expected_metadata

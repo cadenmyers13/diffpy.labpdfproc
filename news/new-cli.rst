@@ -4,7 +4,7 @@
 
 **Changed:**
 
-* Changed commands for command-line interface. See docs for more info.
+* Compartmentalize commands into the subcommands ``mud``, ``zscan``, and ``sample``. See documentation for more info.
 
 **Deprecated:**
 
