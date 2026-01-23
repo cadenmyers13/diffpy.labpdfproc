@@ -199,7 +199,7 @@ def create_parser(use_gui=False):
         **({"widget": "MultiFileChooser"} if use_gui else {}),
     )
     mud_parser.add_argument(
-        "mud_value", type=float, help="mu*d value", metavar="mud"
+        "mud", type=float, help="mu*d value", metavar="mud"
     )
     _add_common_args(mud_parser, use_gui)
 
@@ -247,7 +247,16 @@ def create_parser(use_gui=False):
     sample_parser.add_argument(
         "sample_mass_density",
         type=float,
-        help="Sample mass density in capillary (g/cm^3)",
+        help=(
+            "Sample mass density in capillary (g/cm^3). "
+            "If unsure, a good estimate is ~1/3 of the "
+            "theoretical packing fraction density."
+        ),
+    )
+    sample_parser.add_argument(
+        "diameter",
+        type=float,
+        help="Outer diameter of the capillary in mm",
     )
     _add_common_args(sample_parser, use_gui)
 
@@ -256,9 +265,7 @@ def create_parser(use_gui=False):
 
 def _handle_command_specific_args(args):
     """Convert command-specific arguments to unified format."""
-    if args.command == "mud":
-        args.mud = args.mud_value
-    elif args.command == "sample":
+    if args.command == "sample":
         # Convert sample args to theoretical_from_density format
         args = load_wavelength_from_config_file(args)
         args = set_wavelength(args)
@@ -269,8 +276,9 @@ def _handle_command_specific_args(args):
                 f"{energy_kev},"
                 f"{args.sample_mass_density}"
             )
+    elif args.command == "mud":
+        pass
     elif args.command == "zscan":
-        # Z-scan handling will be done in preprocessing_args via set_mud
         pass
     return args
 

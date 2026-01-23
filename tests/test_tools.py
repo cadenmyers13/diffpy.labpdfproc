@@ -458,40 +458,54 @@ def test_set_xtype_bad():
         actual_args = set_xtype(actual_args)
 
 
-# def test_set_mud_from_mud(user_filesystem):
-#     cwd = Path(user_filesystem)
-#     os.chdir(cwd)
-#     cli_inputs = ["mud", "data.xy", "2.5"]
-#     actual_args = get_args_cli(cli_inputs)
-#     actual_args = set_mud(actual_args)
-#     expected_mud = 2.5
-#     assert actual_args.mud == expected_mud
+def test_set_mud_from_mud(user_filesystem):
+    cwd = Path(user_filesystem)
+    os.chdir(cwd)
+    cli_inputs = ["mud", "data.xy", "2.5"]
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = set_mud(actual_args)
+    expected_mud = 2.5
+    assert actual_args.mud == expected_mud
 
-# @pytest.mark.parametrize(
-#     "inputs, expected_mud",
-#     [
-#         # C1: user enters muD manually, expect to return the same value
-#         (["--mud", "2.5"], 2.5),
-#         # C2: user provides a z-scan file, expect to estimate through the file # noqa: E501
-#         (["--z-scan-file", "test_dir/testfile.xy"], 3),
-#         # C3: user specifies sample composition, energy,
-#         # and sample mass density,
-#         # both with and without whitespaces, expect to estimate theoretically
-#         (["--theoretical-from-density", "ZrO2,17.45,1.2"], 1.49),
-#         (["--theoretical-from-density", "ZrO2, 17.45, 1.2"], 1.49),
-#         # C4: user specifies sample composition, energy, and packing fraction
-#         # both with and without whitespaces, expect to estimate theoretically
-#         # (["--theoretical-from-packing", "ZrO2,17.45,0.3"], 1.49),
-#         # (["--theoretical-from-packing", "ZrO2, 17.45, 0.3"], 1.49),
-#     ],
-# )
-# def test_set_mud(user_filesystem, inputs, expected_mud):
+
+# def test_set_mud_from_zscan(user_filesystem):
 #     cwd = Path(user_filesystem)
 #     os.chdir(cwd)
-#     cli_inputs = ["applymud", "data.xy"] + inputs
+#     cli_inputs = ["zscan", "data.xy", "test_dir/testfile.xy"]
 #     actual_args = get_args_cli(cli_inputs)
 #     actual_args = set_mud(actual_args)
+#     expected_mud = 3.0
 #     assert actual_args.mud == pytest.approx(expected_mud, rel=1e-4, abs=0.1)
+
+
+@pytest.mark.parametrize(
+    "inputs,expected_mud",
+    # C1: user specifies a wavelength
+    # and the wavelength is used to compute mu*D
+    [
+        (["--wavelength", ".71"], 2.16),
+        # C2: user specifies an anode type
+        # and the corresponding wavelength is used
+        # to compute mu*D
+        (["--wavelength", "Mo"], 2.16),
+        # C3: user does not specify wavelength or anode type
+        # and the wavelength is retrieved from a config file
+        ([], 2.16),
+    ],
+)
+def test_set_mud_from_sample(mocker, user_filesystem, inputs, expected_mud):
+    cwd = Path(user_filesystem)
+    home_dir = cwd / "home_dir"
+    mocker.patch("pathlib.Path.home", lambda _: home_dir)
+    os.chdir(cwd)
+    local_config_data = {"wavelength": 0.71}
+    with open(cwd / "diffpyconfig.json", "w") as f:
+        json.dump(local_config_data, f)
+    # [command,datafile,sample_composition,sample_mass_density,diameter]
+    cli_inputs = ["sample", "data.xy", "ZrO2", "1.745", "1"] + inputs
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = set_mud(actual_args)
+    assert actual_args.mud == pytest.approx(expected_mud, rel=1e-4, abs=0.1)
 
 
 # @pytest.mark.parametrize(
