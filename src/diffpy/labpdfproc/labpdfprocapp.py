@@ -263,8 +263,8 @@ def create_parser(use_gui=False):
     return parser
 
 
-def _handle_command_specific_args(args):
-    """Convert command-specific arguments to unified format."""
+def _handle_old_api_conversion(args):
+    """Convert `sample` command arguments to previous format."""
     if args.command == "sample":
         # Convert sample args to theoretical_from_density format
         args = load_wavelength_from_config_file(args)
@@ -276,10 +276,6 @@ def _handle_command_specific_args(args):
                 f"{energy_kev},"
                 f"{args.sample_mass_density}"
             )
-    elif args.command == "mud":
-        pass
-    elif args.command == "zscan":
-        pass
     return args
 
 
@@ -302,7 +298,7 @@ def get_args_cli(override=None):
 def main():
     use_gui = len(sys.argv) == 1 or "--gui" in sys.argv
     args = get_args_gui() if use_gui else get_args_cli()
-    args = _handle_command_specific_args(args)
+    args = _handle_old_api_conversion(args)
     args = preprocessing_args(args)
     apply_absorption_correction(args)
 
