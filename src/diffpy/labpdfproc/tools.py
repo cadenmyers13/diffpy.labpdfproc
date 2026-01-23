@@ -180,6 +180,11 @@ def normalize_wavelength(args):
     -------
     args : argparse.Namespace
         The updated arguments with args.wavelength.
+
+    Raises
+    ------
+    ValueError
+        If a string wavelength is not a known source.
     """
     if args.wavelength is None:
         return args
