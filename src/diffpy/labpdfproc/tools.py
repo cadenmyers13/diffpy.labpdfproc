@@ -560,6 +560,6 @@ def load_metadata(args, filepath):
     for key in METADATA_KEYS_TO_EXCLUDE:
         metadata.pop(key, None)
     metadata["mud"] = round(float(metadata["mud"]), 4)
-    metadata["input_directory"] = str(filepath)  # Changed from input_file
+    metadata["input_directory"] = str(filepath)
     metadata["output_directory"] = str(metadata["output_directory"])
     return metadata

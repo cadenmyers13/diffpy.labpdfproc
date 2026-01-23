@@ -704,14 +704,14 @@ def test_load_package_info(mocker):
         ),
         # C2: user corrects data using `zscan` command
         # expect to include z-scan file and method
-        # (
-        #     ["zscan", ".", "test_dir/testfile.xy"],
-        #     {
-        #         "z_scan_file": "test_dir/testfile.xy",
-        #         "command": "zscan",
-        #         "mud": 3.0,
-        #     },
-        # ),
+        (
+            ["zscan", ".", "test_dir/testfile.xy"],
+            {
+                "z_scan_file": "test_dir/testfile.xy",
+                "command": "zscan",
+                "mud": 3.0,
+            },
+        ),
         # C3: user corrects data using `sample` command
         # expected to include sample composition,
         # mass density, diameter, and method
