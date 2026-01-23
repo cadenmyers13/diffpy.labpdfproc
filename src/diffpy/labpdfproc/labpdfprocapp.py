@@ -264,7 +264,8 @@ def create_parser(use_gui=False):
 
 
 def _handle_old_api_conversion(args):
-    """Convert `sample` command arguments to previous format."""
+    """Convert `sample` command arguments to previous format so functions can
+    accept them without modification."""
     if args.command == "sample":
         # Convert sample args to theoretical_from_density format
         args = load_wavelength_from_config_file(args)
