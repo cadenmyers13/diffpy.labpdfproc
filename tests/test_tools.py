@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from diffpy.labpdfproc.labpdfprocapp import get_args_cli
-from diffpy.labpdfproc.tools import (  # noqa: F401
+from diffpy.labpdfproc.tools import (
     known_sources,
     load_metadata,
     load_package_info,
@@ -21,7 +21,7 @@ from diffpy.labpdfproc.tools import (  # noqa: F401
     set_wavelength,
     set_xtype,
 )
-from diffpy.utils.diffraction_objects import XQUANTITIES  # noqa: F401
+from diffpy.utils.diffraction_objects import XQUANTITIES
 
 
 @pytest.mark.parametrize(
