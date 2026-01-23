@@ -468,14 +468,14 @@ def test_set_mud_from_mud(user_filesystem):
     assert actual_args.mud == expected_mud
 
 
-# def test_set_mud_from_zscan(user_filesystem):
-#     cwd = Path(user_filesystem)
-#     os.chdir(cwd)
-#     cli_inputs = ["zscan", "data.xy", "test_dir/testfile.xy"]
-#     actual_args = get_args_cli(cli_inputs)
-#     actual_args = set_mud(actual_args)
-#     expected_mud = 3.0
-#     assert actual_args.mud == pytest.approx(expected_mud, rel=1e-4, abs=0.1)
+def test_set_mud_from_zscan(user_filesystem):
+    cwd = Path(user_filesystem)
+    os.chdir(cwd)
+    cli_inputs = ["zscan", "data.xy", "test_dir/testfile.xy"]
+    actual_args = get_args_cli(cli_inputs)
+    actual_args = set_mud(actual_args)
+    expected_mud = 3.0
+    assert actual_args.mud == pytest.approx(expected_mud, rel=1e-4, abs=0.1)
 
 
 @pytest.mark.parametrize(
