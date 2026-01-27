@@ -13,7 +13,7 @@ diffpy.labpdfproc - Tools for processing x-ray powder diffraction data from labo
 Authors
 =======
 
-diffpy.labpdfproc is developed by Yucong Chen, Till Schertenleib, Caden Myers, the Billinge Group
+diffpy.labpdfproc is developed by Billinge Group
 and its community contributors.
 
 For a detailed list of contributors see
