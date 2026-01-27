@@ -1,314 +1,307 @@
+import argparse
 import sys
-from argparse import ArgumentParser
 
 from gooey import Gooey, GooeyParser
 
 from diffpy.labpdfproc.functions import CVE_METHODS, apply_corr, compute_cve
 from diffpy.labpdfproc.tools import (
-    known_sources,
+    WAVELENGTHS,
     load_metadata,
+    load_wavelength_from_config_file,
     preprocessing_args,
+    set_wavelength,
 )
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
 from diffpy.utils.parsers.loaddata import loadData
 
-theoretical_mud_hmsg_suffix = (
-    "in that exact order, "
-    "separated by commas (e.g., ZrO2,17.45,0.5). "
-    "If you add whitespaces, "
-    "enclose it in quotes (e.g., 'ZrO2, 17.45, 0.5'). "
-)
 
-
-def _define_arguments():
-    args = [
-        {
-            "name": ["input"],
-            "help": (
-                "The filename(s) or folder(s) of the datafile(s) to load. "
-                "Required.\n"
-                "Supply a space-separated list of files or directories. "
-                "Avoid spaces in filenames when possible; "
-                "if present, enclose the name in quotes. "
-                "Long lists can be supplied, one per line, "
-                "in a file with name file_list.txt. "
-                "If one or more directory is provided, all valid "
-                "data-files in that directory will be processed. "
-                "Examples of valid inputs are 'file.xy', 'data/file.xy', "
-                "'file.xy data/file.xy', "
-                "'.' (load everything in the current directory), "
-                "'data' (load everything in the folder ./data), "
-                "'data/file_list.txt' (load the list of files "
-                "contained in the text-file called file_list.txt "
-                "that can be found in the folder ./data), "
-                "'./*.chi', 'data/*.chi' "
-                "(load all files with extension .chi in the folder ./data)."
-            ),
-            "nargs": "+",
-            "widget": "MultiFileChooser",
-        },
-        {
-            "name": ["-a", "--anode-type"],
-            "help": (
-                f"The type of the x-ray source. "
-                f"Allowed values are {*known_sources, }. "
-                f"Either specify a known x-ray source or specify wavelength."
-            ),
-            "default": None,
-        },
-        {
-            "name": ["-w", "--wavelength"],
-            "help": (
-                "X-ray source wavelength in angstroms. "
-                "Not needed if the anode-type is specified."
-            ),
-            "type": float,
-        },
-        {
-            "name": ["-o", "--output-directory"],
-            "help": (
-                "The name of the output directory. "
-                "If not specified then corrected files will be "
-                "written to the current directory. "
-                "If the specified directory doesn't exist it will be created."
-            ),
-            "default": None,
-            "widget": "DirChooser",
-        },
-        {
-            "name": ["-x", "--xtype"],
-            "help": (
-                f"The quantity on the independent variable axis. "
-                f"Allowed values: {*XQUANTITIES, }. "
-                f"If not specified then two-theta "
-                f"is assumed for the independent variable."
-            ),
-            "default": "tth",
-        },
-        {
-            "name": ["-c", "--output-correction"],
-            "help": (
-                "The absorption correction will be output to a file "
-                "if this flag is set. "
-                "Default is that it is not output."
-            ),
-            "action": "store_true",
-        },
-        {
-            "name": ["-f", "--force-overwrite"],
-            "help": "Outputs will not overwrite existing file "
-            "unless --force is specified.",
-            "action": "store_true",
-        },
-        {
-            "name": ["-m", "--method"],
-            "help": (
-                f"The method for computing absorption correction. "
-                f"Allowed methods: {*CVE_METHODS, }. "
-                f"Default method is polynomial interpolation "
-                f"if not specified."
-            ),
-            "default": "polynomial_interpolation",
-        },
-        {
-            "name": ["-u", "--user-metadata"],
-            "help": (
-                "Specify key-value pairs to be loaded into metadata "
-                "using the format key=value. "
-                "Separate pairs with whitespace, "
-                "and ensure no whitespaces before or after the = sign. "
-                "Avoid using = in keys. If multiple = signs are present, "
-                "only the first separates the key and value. "
-                "If a key or value contains whitespace, enclose it in quotes. "
-                "For example, facility='NSLS II', "
-                "'facility=NSLS II', beamline=28ID-2, "
-                "'beamline'='28ID-2', 'favorite color'=blue, "
-                "are all valid key=value items."
-            ),
-            "nargs": "+",
-            "metavar": "KEY=VALUE",
-        },
-        {
-            "name": ["-n", "--username"],
-            "help": (
-                "Username will be loaded from config files. "
-                "Specify here only if you want to "
-                "override that behavior at runtime."
-            ),
-            "default": None,
-        },
-        {
-            "name": ["-e", "--email"],
-            "help": (
-                "Email will be loaded from config files. "
-                "Specify here only if you want to "
-                "override that behavior at runtime."
-            ),
-            "default": None,
-        },
-        {
-            "name": ["--orcid"],
-            "help": (
-                "ORCID will be loaded from config files. "
-                "Specify here only if you want to "
-                "override that behavior at runtime."
-            ),
-            "default": None,
-        },
-    ]
-    return args
-
-
-def _add_mud_selection_group(p, use_gui=False):
-    """Current Options:
-    1. Manually enter muD (`--mud`).
-    2. Estimate from a z-scan file (`-z` or `--z-scan-file`).
-    3. Estimate theoretically based on sample mass density
-    (`-d` or `--theoretical-from-density`).
-    4. Estimate theoretically based on packing fraction
-    (`-p` or `--theoretical-from-packing`).
-    """
-    g = p.add_argument_group("Options for setting mu*D value (Required)")
-    g = g.add_mutually_exclusive_group(required=True)
-    g.add_argument(
-        "--mud",
-        type=float,
-        help="Enter the mu*D value manually.",
-        **({"widget": "DecimalField"} if use_gui else {}),
-    )
-    g.add_argument(
-        "-z",
-        "--z-scan-file",
+def _add_common_args(parser, use_gui=False):
+    parser.add_argument(
+        "-w",
+        "--wavelength",
         help=(
-            "Estimate mu*D experimentally from a z-scan file. "
-            "Specify the path to the file "
-            "used to compute the mu*D value."
+            "X-ray wavelength in angstroms (numeric) or X-ray source name "
+            f"(allowed: {', '.join(sorted(WAVELENGTHS.keys()))}). "
+            "Will be loaded from config files if not specified."
         ),
-        **({"widget": "FileChooser"} if use_gui else {}),
+        default=None,
     )
-    g.add_argument(
-        "-d",
-        "--theoretical-from-density",
+    parser.add_argument(
+        "-x",
+        "--xtype",
         help=(
-            "Estimate mu*D theoretically using sample mass density. "
-            "Specify the chemical formula, incident x-ray energy (in keV), "
-            "and sample mass density (in g/cm^3), "
-            + theoretical_mud_hmsg_suffix
+            "X-axis type (default: tth). Allowed values: "
+            f"{', '.join(XQUANTITIES)}"
         ),
+        default="tth",
     )
-    g.add_argument(
-        "-p",
-        "--theoretical-from-packing",
+    parser.add_argument(
+        "-m",
+        "--method",
         help=(
-            "Estimate mu*D theoretically using packing fraction. "
-            "Specify the chemical formula, incident x-ray energy (in keV), "
-            "and packing fraction (0 to 1), " + theoretical_mud_hmsg_suffix
+            "Method for cylindrical volume element (CVE) calculation "
+            "(default: polynomial_interpolation). Allowed methods: "
+            f"{', '.join(CVE_METHODS)}"
         ),
+        default="polynomial_interpolation",
+        choices=CVE_METHODS,
     )
-    return p
+    parser.add_argument(
+        "-o",
+        "--output-directory",
+        help=(
+            "Directory to save corrected files (created if needed). "
+            "Defaults to current directory."
+        ),
+        default=None,
+        **({"widget": "DirChooser"} if use_gui else {}),
+    )
+    parser.add_argument(
+        "-f", "--force", help="Overwrite existing files", action="store_true"
+    )
+    parser.add_argument(
+        "-c",
+        "--output-correction",
+        help="Also output the absorption correction to a separate file",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-u",
+        "--user-metadata",
+        help=(
+            "Specify key-value pairs to be loaded into metadata "
+            "using the format key=value. "
+            "Separate pairs with whitespace, "
+            "and ensure no whitespaces before or after the = sign. "
+            "Avoid using = in keys. If multiple = signs are present, "
+            "only the first separates the key and value. "
+            "If a key or value contains whitespace, enclose it in quotes. "
+            "For example, facility='NSLS II', "
+            "'facility=NSLS II', beamline=28ID-2, "
+            "'beamline'='28ID-2', 'favorite color'=blue, "
+            "are all valid key=value items."
+        ),
+        nargs="+",
+        metavar="KEY=VALUE",
+    )
+    _add_credit_args(parser, use_gui)
+    return parser
 
 
-def _register_applymud_subparser(subp, use_gui=False):
-    applymudp = subp.add_parser(
-        "applymud", help="Apply absorption correction."
+def _add_credit_args(parser, use_gui=False):
+    parser.add_argument(
+        "--username",
+        help=(
+            "Your name (optional, for dataset credit). "
+            "Will be loaded from config files if not specified."
+        ),
+        default=None,
+        **({"widget": "TextField"} if use_gui else {}),
     )
-    _add_mud_selection_group(applymudp, use_gui=use_gui)
-    for arg in _define_arguments():
-        names = arg["name"]
-        options = {k: v for k, v in arg.items() if k != "name"}
-        if not use_gui and "widget" in options:
-            options.pop("widget")
-        applymudp.add_argument(*names, **options)
+    parser.add_argument(
+        "--email",
+        help=(
+            "Your email (optional, for dataset credit). "
+            "Will be loaded from config files if not specified."
+        ),
+        default=None,
+        **({"widget": "TextField"} if use_gui else {}),
+    )
+    parser.add_argument(
+        "--orcid",
+        help=(
+            "Your ORCID ID (optional, for dataset credit). "
+            "Will be loaded from config files if not specified."
+        ),
+        default=None,
+        **({"widget": "TextField"} if use_gui else {}),
+    )
+
+
+def _save_corrected(corrected, input_path, args):
+    outfile = args.output_directory / (input_path.stem + "_corrected.chi")
+    if outfile.exists() and not args.force:
+        print(f"WARNING: {outfile} exists. Use --force to overwrite.")
+        return
+    corrected.metadata = corrected.metadata or {}
+    corrected.dump(str(outfile), xtype=args.xtype)
+    print(f"Saved corrected data to {outfile}")
+
+
+def _save_correction(correction, input_path, args):
+    corrfile = args.output_directory / (input_path.stem + "_cve.chi")
+    if corrfile.exists() and not args.force:
+        print(f"WARNING: {corrfile} exists. Use --force to overwrite.")
+        return
+    correction.metadata = correction.metadata or {}
+    correction.dump(str(corrfile), xtype=args.xtype)
+    print(f"Saved correction data to {corrfile}")
+
+
+def _load_pattern(path, xtype, wavelength, metadata):
+    x, y = loadData(path, unpack=True)
+    return DiffractionObject(
+        xarray=x,
+        yarray=y,
+        xtype=xtype,
+        wavelength=wavelength,
+        scat_quantity="x-ray",
+        name=path.stem,
+        metadata=metadata,
+    )
+
+
+def apply_absorption_correction(args):
+    """Process all input files with absorption correction."""
+    for path in args.input_paths:
+        metadata = load_metadata(args, path)
+        pattern = _load_pattern(path, args.xtype, args.wavelength, metadata)
+        correction = compute_cve(
+            pattern, args.mud, method=args.method, xtype=args.xtype
+        )
+        correction.metadata = metadata.copy()
+        corrected_data = apply_corr(pattern, correction)
+        corrected_data.name = (
+            f"Absorption corrected input_data: {pattern.name}"
+        )
+        corrected_data.metadata = metadata.copy()
+        _save_corrected(corrected_data, path, args)
+        if args.output_correction:
+            _save_correction(correction, path, args)
 
 
 def create_parser(use_gui=False):
-    p = GooeyParser() if use_gui else ArgumentParser()
-    subp = p.add_subparsers(title="subcommand", dest="subcommand")
-    _register_applymud_subparser(subp, use_gui)
-    return p
+    Parser = GooeyParser if use_gui else argparse.ArgumentParser
+    parser = Parser(
+        prog="labpdfproc",
+        description=(
+            "Apply absorption corrections to laboratory X-ray diffraction "
+            "data prior to PDF analysis. Supports manual mu*d, "
+            "z-scan, or sample-based corrections."
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    subp = parser.add_subparsers(
+        dest="command", required=True, title="Correction method"
+    )
+
+    # MUD parser
+    mud_parser = subp.add_parser(
+        "mud", help="Correct diffraction data using known mu*d value"
+    )
+    mud_parser.add_argument(
+        "input",
+        nargs="+",
+        help=(
+            "Input X-ray diffraction data file(s) or directory. "
+            "Can specify multiple files, directories, or use wildcards."
+        ),
+        **({"widget": "MultiFileChooser"} if use_gui else {}),
+    )
+    mud_parser.add_argument(
+        "mud", type=float, help="mu*d value", metavar="mud"
+    )
+    _add_common_args(mud_parser, use_gui)
+
+    # ZSCAN parser
+    zscan_parser = subp.add_parser(
+        "zscan", help="Correct diffraction data using a z-scan measurement"
+    )
+    zscan_parser.add_argument(
+        "input",
+        nargs="+",
+        help=(
+            "Input X-ray diffraction data file(s) or directory. "
+            "Can specify multiple files, directories, or use wildcards."
+        ),
+        **({"widget": "MultiFileChooser"} if use_gui else {}),
+    )
+    zscan_parser.add_argument(
+        "z_scan_file",
+        help=(
+            "Z-scan measurement file. "
+            "See diffpy.labpdfproc documentation for more information."
+        ),
+        **({"widget": "FileChooser"} if use_gui else {}),
+    )
+    _add_common_args(zscan_parser, use_gui)
+
+    # SAMPLE parser
+    sample_parser = subp.add_parser(
+        "sample",
+        help="Correct diffraction data using sample composition/density",
+    )
+    sample_parser.add_argument(
+        "input",
+        nargs="+",
+        help=(
+            "Input X-ray diffraction data file(s) or directory. "
+            "Can specify multiple files, directories, or use wildcards."
+        ),
+        **({"widget": "MultiFileChooser"} if use_gui else {}),
+    )
+    sample_parser.add_argument(
+        "sample_composition",
+        help="Chemical formula, e.g. Fe2O3",
+    )
+    sample_parser.add_argument(
+        "sample_mass_density",
+        type=float,
+        help=(
+            "Sample mass density in capillary (g/cm^3). "
+            "If unsure, a good estimate is ~1/3 of the "
+            "theoretical packing fraction density."
+        ),
+    )
+    sample_parser.add_argument(
+        "diameter",
+        type=float,
+        help="Outer diameter of the capillary in mm",
+    )
+    _add_common_args(sample_parser, use_gui)
+
+    return parser
+
+
+def _handle_old_api_conversion(args):
+    """Convert `sample` command arguments to previous format so functions can
+    accept them without modification."""
+    if args.command == "sample":
+        # Convert sample args to theoretical_from_density format
+        args = load_wavelength_from_config_file(args)
+        args = set_wavelength(args)
+        energy_kev = 12.398 / args.wavelength if args.wavelength else None
+        if energy_kev:
+            args.theoretical_from_density = (
+                f"{args.sample_composition},"
+                f"{energy_kev},"
+                f"{args.sample_mass_density}"
+            )
+    return args
 
 
 @Gooey(
+    program_name="labpdfproc",
     required_cols=1,
     optional_cols=1,
     show_sidebar=True,
-    program_name="labpdfproc GUI",
 )
-def _get_args_gui():
-    p = create_parser(use_gui=True)
-    args = p.parse_args()
-    return args
+def get_args_gui():
+    parser = create_parser(use_gui=True)
+    return parser.parse_args()
 
 
-def _get_args_cli(override_cli_inputs=None):
-    p = create_parser(use_gui=False)
-    args = p.parse_args(override_cli_inputs)
-    return args
-
-
-def get_args(override_cli_inputs=None, use_gui=False):
-    return _get_args_gui() if use_gui else _get_args_cli(override_cli_inputs)
-
-
-def applymud(args):
-    args = preprocessing_args(args)
-    for filepath in args.input_paths:
-        outfilestem = filepath.stem + "_corrected"
-        corrfilestem = filepath.stem + "_cve"
-        outfile = args.output_directory / (outfilestem + ".chi")
-        corrfile = args.output_directory / (corrfilestem + ".chi")
-
-        if outfile.exists() and not args.force_overwrite:
-            sys.exit(
-                f"Output file {str(outfile)} already exists. "
-                f"Please rerun specifying -f if you want to overwrite it."
-            )
-        if (
-            corrfile.exists()
-            and args.output_correction
-            and not args.force_overwrite
-        ):
-            sys.exit(
-                f"Corrections file {str(corrfile)} "
-                f"was requested and already exists. "
-                f"Please rerun specifying -f if you want to overwrite it."
-            )
-
-        xarray, yarray = loadData(filepath, unpack=True)
-        input_pattern = DiffractionObject(
-            xarray=xarray,
-            yarray=yarray,
-            xtype=args.xtype,
-            wavelength=args.wavelength,
-            scat_quantity="x-ray",
-            name=filepath.stem,
-            metadata=load_metadata(args, filepath),
-        )
-
-        absorption_correction = compute_cve(
-            input_pattern, args.mud, args.method, args.xtype
-        )
-        corrected_data = apply_corr(input_pattern, absorption_correction)
-        corrected_data.name = (
-            f"Absorption corrected input_data: " f"{input_pattern.name}"
-        )
-        corrected_data.dump(f"{outfile}", xtype=args.xtype)
-
-        if args.output_correction:
-            absorption_correction.dump(f"{corrfile}", xtype=args.xtype)
-
-
-def run_subcommand(args):
-    if args.subcommand == "applymud":
-        return applymud(args)
-    else:
-        raise ValueError(f"Unknown subcommand: {args.subcommand}")
+def get_args_cli(override=None):
+    parser = create_parser(use_gui=False)
+    return parser.parse_args(override)
 
 
 def main():
     use_gui = len(sys.argv) == 1 or "--gui" in sys.argv
-    args = get_args(use_gui=use_gui)
-    return run_subcommand(args)
+    args = get_args_gui() if use_gui else get_args_cli()
+    args = _handle_old_api_conversion(args)
+    args = preprocessing_args(args)
+    apply_absorption_correction(args)
 
 
 if __name__ == "__main__":
