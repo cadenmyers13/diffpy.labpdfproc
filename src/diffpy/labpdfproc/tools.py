@@ -39,13 +39,10 @@ known_sources = [key for key in WAVELENGTHS.keys()]
 # and will be written into separate arguments for clarity.
 METADATA_KEYS_TO_EXCLUDE = [
     "output_correction",
-    "force_overwrite",
     "input",
     "input_paths",
-    "wavelength",
-    "theoretical_from_density",
-    "theoretical_from_packing",
-    "subcommand",
+    "force",
+    "energy",
 ]
 
 
@@ -166,8 +163,52 @@ def set_input_lists(args):
     return args
 
 
+def normalize_wavelength(args):
+    """Normalize args.wavelength to a float.
+
+    If args.wavelength is:
+    - None: return args unchanged
+    - float-like: convert to float
+    - string: look up corresponding value in WAVELENGTHS (case-insensitive)
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        The arguments from the parser.
+
+    Returns
+    -------
+    args : argparse.Namespace
+        The updated arguments with args.wavelength.
+
+    Raises
+    ------
+    ValueError
+        If a string wavelength is not a known source.
+    """
+    if args.wavelength is None:
+        return args
+    try:
+        args.wavelength = float(args.wavelength)
+        return args
+    except (TypeError, ValueError):
+        pass
+    key = str(args.wavelength).strip()
+    matched = next(
+        (k for k in WAVELENGTHS if k.lower() == key.lower()),
+        None,
+    )
+    if matched is None:
+        raise ValueError(
+            f"Anode type '{args.wavelength}' not recognized. "
+            f"Please rerun specifying an anode type from {*known_sources, }."
+        )
+    args.wavelength = WAVELENGTHS[matched]
+    return args
+
+
 def load_wavelength_from_config_file(args):
-    """Load wavelength and anode type from config files.
+    """Load wavelength from config files.
 
     It prioritizes values in the following order:
     1. cli inputs, 2. local config file, 3. global config file.
@@ -184,12 +225,8 @@ def load_wavelength_from_config_file(args):
     """
     global_config = _load_config(Path().home() / "diffpyconfig.json")
     local_config = _load_config(Path().cwd() / "diffpyconfig.json")
-    local_has_data = local_config and (
-        "wavelength" in local_config or "anode_type" in local_config
-    )
-    global_has_data = global_config and (
-        "wavelength" in global_config or "anode_type" in global_config
-    )
+    local_has_data = local_config and "wavelength" in local_config
+    global_has_data = global_config and "wavelength" in global_config
     if not local_has_data and not global_has_data:
         print(
             "No configuration file was found containing information "
@@ -202,76 +239,54 @@ def load_wavelength_from_config_file(args):
             "For more information, please refer to www.diffpy.org/"
             "diffpy.labpdfproc/examples/toolsexample.html"
         )
-
-    if args.wavelength or args.anode_type:
-        return args
+    if args.wavelength is not None:
+        return normalize_wavelength(args)
     config = local_config if local_has_data else global_config
     if config:
-        args.wavelength = args.wavelength or config.get("wavelength")
-        args.anode_type = args.anode_type or config.get("anode_type")
+        args.wavelength = config.get("wavelength")
+        return normalize_wavelength(args)
     return args
 
 
 def set_wavelength(args):
-    """Set the wavelength based on the given anode_type or wavelength.
+    """Set the wavelength based on args.wavelength.
 
-    First checks from args. If neither is provided,
-    it attempts to load from local and then global config file.
+    args.wavelength may be:
+    - None
+    - a number (explicit wavelength in Å)
+    - a string (X-ray source name)
+
+    If a string is provided, it must match a key in WAVELENGTHS.
 
     Parameters
     ----------
     args : argparse.Namespace
-        The arguments from the parser.
 
     Raises
     ------
     ValueError
-        Raised if:
-        (1) neither wavelength or anode type is provided
-            and xtype is not the two-theta grid,
-        (2) both are provided,
-        (3) anode_type is not one of the known sources,
-        (4) wavelength is non-positive.
+        If wavelength is required but missing,
+        if a string wavelength is not a known source,
+        or if a numeric wavelength is non-positive.
 
     Returns
     -------
     args : argparse.Namespace
-        The updated arguments with the wavelength.
+        Updated arguments with args.wavelength as a float.
     """
-    args = load_wavelength_from_config_file(args)
-    if args.wavelength is None and args.anode_type is None:
+    args = normalize_wavelength(args)
+    if args.wavelength is None:
         if args.xtype not in ANGLEQUANTITIES:
             raise ValueError(
                 f"Please provide a wavelength or anode type "
                 f"because the independent variable axis is not on two-theta. "
                 f"Allowed anode types are {*known_sources, }."
             )
-    elif args.wavelength is not None and args.anode_type is not None:
-        raise ValueError(
-            f"Please provide either a wavelength or an anode type, not both. "
-            f"Allowed anode types are {*known_sources, }."
-        )
-    elif args.anode_type is not None:
-        matched_anode_type = next(
-            (
-                key
-                for key in WAVELENGTHS
-                if key.lower() == args.anode_type.lower()
-            ),
-            None,
-        )
-        if matched_anode_type is None:
-            raise ValueError(
-                f"Anode type '{args.anode_type}' not recognized. "
-                f"Please rerun specifying an anode_type "
-                f"from {*known_sources, }."
-            )
-        args.anode_type = matched_anode_type
-        args.wavelength = WAVELENGTHS[args.anode_type]
-    elif args.wavelength is not None and args.wavelength <= 0:
+        return args
+    if args.wavelength <= 0:
         raise ValueError(
             f"Wavelength = {args.wavelength} is not valid. "
-            "Please rerun specifying a known anode_type "
+            "Please rerun specifying a known anode type "
             "or a positive wavelength."
         )
     return args
@@ -336,16 +351,18 @@ def _parse_theoretical_input(input_str):
 def _set_theoretical_mud_from_density(args):
     """Theoretical estimation of mu*D from sample composition, energy, and
     sample mass density."""
-    sample_composition, energy, sample_mass_density = _parse_theoretical_input(
-        args.theoretical_from_density
-    )
-    args.sample_composition = sample_composition
+    args = normalize_wavelength(args)
+    if args.wavelength is None:
+        args = load_wavelength_from_config_file(args)
+    energy = 12.398 / args.wavelength
     args.energy = energy
-    args.sample_mass_density = sample_mass_density
-    args.mud = compute_mu_using_xraydb(
-        args.sample_composition,
-        args.energy,
-        sample_mass_density=args.sample_mass_density,
+    args.mud = (
+        compute_mu_using_xraydb(
+            args.sample_composition,
+            args.energy,
+            sample_mass_density=args.sample_mass_density,
+        )
+        * args.diameter
     )
     return args
 
@@ -359,10 +376,13 @@ def _set_theoretical_mud_from_packing(args):
     args.sample_composition = sample_composition
     args.energy = energy
     args.packing_fraction = packing_fraction
-    args.mud = compute_mu_using_xraydb(
-        args.sample_composition,
-        args.energy,
-        packing_fraction=args.packing_fraction,
+    args.mud = (
+        compute_mu_using_xraydb(
+            args.sample_composition,
+            args.energy,
+            packing_fraction=args.packing_fraction,
+        )
+        * args.diameter
     )
     return args
 
@@ -386,12 +406,12 @@ def set_mud(args):
     args : argparse.Namespace
         The updated arguments with mu*D.
     """
-    if args.z_scan_file:
+    if args.command == "mud":
+        return args
+    if args.command == "zscan":
         return _set_mud_from_zscan(args)
-    elif args.theoretical_from_density:
+    if args.command == "sample":
         return _set_theoretical_mud_from_density(args)
-    elif args.theoretical_from_packing:
-        return _set_theoretical_mud_from_packing(args)
     return args
 
 
@@ -507,6 +527,7 @@ def preprocessing_args(args):
     args : argparse.Namespace
         The updated argparse Namespace with arguments preprocessed.
     """
+    args = load_wavelength_from_config_file(args)
     args = set_mud(args)
     args = set_input_lists(args)
     args = set_output_directory(args)
@@ -518,6 +539,7 @@ def preprocessing_args(args):
     return args
 
 
+# Update load_metadata to use 'input_directory' consistently:
 def load_metadata(args, filepath):
     """Load the relevant metadata from args to write into the header of the
     output files.
@@ -538,6 +560,7 @@ def load_metadata(args, filepath):
     metadata = copy.deepcopy(vars(args))
     for key in METADATA_KEYS_TO_EXCLUDE:
         metadata.pop(key, None)
+    metadata["mud"] = round(float(metadata["mud"]), 4)
     metadata["input_directory"] = str(filepath)
     metadata["output_directory"] = str(metadata["output_directory"])
     return metadata
