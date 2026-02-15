@@ -1,7 +1,7 @@
 Authors
 =======
 
-Billinge Group and community contributors.
+Yucong Chen, Till Schertenleib, Caden Myers, Billinge Group members
 
 Contributors
 ------------
