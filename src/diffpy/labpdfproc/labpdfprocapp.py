@@ -12,7 +12,7 @@ from diffpy.labpdfproc.tools import (
     set_wavelength,
 )
 from diffpy.utils.diffraction_objects import XQUANTITIES, DiffractionObject
-from diffpy.utils.parsers.loaddata import loadData
+from diffpy.utils.parsers import load_data
 
 
 def _add_common_args(parser, use_gui=False):
@@ -139,7 +139,7 @@ def _save_correction(correction, input_path, args):
 
 
 def _load_pattern(path, xtype, wavelength, metadata):
-    x, y = loadData(path, unpack=True)
+    x, y = load_data(path, unpack=True)
     return DiffractionObject(
         xarray=x,
         yarray=y,
@@ -264,8 +264,8 @@ def create_parser(use_gui=False):
 
 
 def _handle_old_api_conversion(args):
-    """Convert `sample` command arguments to previous format so functions can
-    accept them without modification."""
+    """Convert `sample` command arguments to previous format so
+    functions can accept them without modification."""
     if args.command == "sample":
         # Convert sample args to theoretical_from_density format
         args = load_wavelength_from_config_file(args)
