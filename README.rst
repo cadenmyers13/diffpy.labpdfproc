@@ -8,7 +8,7 @@
         :target: https://diffpy.github.io/diffpy.labpdfproc
         :height: 100px
 
-|PyPi| |Forge| |PythonVersion| |PR|
+|PyPI| |Forge| |PythonVersion| |PR|
 
 |CI| |Codecov| |Black| |Tracking|
 
@@ -25,8 +25,9 @@
         :target: https://anaconda.org/conda-forge/diffpy.labpdfproc
 
 .. |PR| image:: https://img.shields.io/badge/PR-Welcome-29ab47ff
+        :target: https://github.com/diffpy/diffpy.labpdfproc/pulls
 
-.. |PyPi| image:: https://img.shields.io/pypi/v/diffpy.labpdfproc
+.. |PyPI| image:: https://img.shields.io/pypi/v/diffpy.labpdfproc
         :target: https://pypi.org/project/diffpy.labpdfproc/
 
 .. |PythonVersion| image:: https://img.shields.io/pypi/pyversions/diffpy.labpdfproc
@@ -84,10 +85,6 @@ The following creates and activates a new environment named ``diffpy.labpdfproc_
         conda create -n diffpy.labpdfproc_env diffpy.labpdfproc
         conda activate diffpy.labpdfproc_env
 
-To confirm that the installation was successful, type ::
-
-        python -c "import diffpy.labpdfproc; print(diffpy.labpdfproc.__version__)"
-
 The output should print the latest version displayed on the badges above.
 
 If the above does not work, you can use ``pip`` to download and install the latest release from
@@ -102,26 +99,18 @@ and run the following ::
 
         pip install .
 
-Example
--------
+This package also provides command-line utilities. To check the software has been installed correctly, type ::
 
-Navigate to the directory that contains 1D diffraction patterns that you would like to process.
-Activate the conda environment (`conda activate diffpy.labpdfproc_env`) that contains the package and run the following command ::
+        labpdfproc --version
 
-        labpdfproc <path/to/inputfile.txt> --mud <muD>
+You can also type the following command to verify the installation. ::
 
-Here replace <muD> with the value of muD for your sample
-and <path/to/inputfile.txt> with the path and filename of your input file.
-For example, if the uncorrected data case is called zro2_mo.xy and is in the current directory
-and it has a muD of 2.5 then the command would be ::
+        python -c "import diffpy.labpdfproc; print(diffpy.labpdfproc.__version__)"
 
-        labpdfproc zro2_mo.xy --mud 2.5
 
-Please type ::
+To view the basic usage and available commands, type ::
 
-        labpdfproc --help
-
-for more information on the available options.
+        labpdfproc -h
 
 Getting Started
 ---------------
@@ -131,9 +120,7 @@ You may consult our `online documentation <https://diffpy.github.io/diffpy.labpd
 Support and Contribute
 ----------------------
 
-`Diffpy user group <https://groups.google.com/g/diffpy-users>`_ is the discussion forum for general questions and discussions about the use of diffpy.labpdfproc. Please join the diffpy.labpdfproc users community by joining the Google group. The diffpy.labpdfproc project welcomes your expertise and enthusiasm!
-
-If you see a bug or want to request a feature, please `report it as an issue <https://github.com/diffpy/diffpy.labpdfproc/issues>`_ and/or `submit a fix as a PR <https://github.com/diffpy/diffpy.labpdfproc/pulls>`_. You can also post it to the `Diffpy user group <https://groups.google.com/g/diffpy-users>`_.
+If you see a bug or want to request a feature, please `report it as an issue <https://github.com/diffpy/diffpy.labpdfproc/issues>`_ and/or `submit a fix as a PR <https://github.com/diffpy/diffpy.labpdfproc/pulls>`_.
 
 Feel free to fork the project and contribute. To install diffpy.labpdfproc
 in a development mode, with its sources being directly used by Python
@@ -161,4 +148,9 @@ Before contributing, please read our `Code of Conduct <https://github.com/diffpy
 Contact
 -------
 
-For more information on diffpy.labpdfproc please visit the project `web-page <https://diffpy.github.io/>`_ or email Prof. Simon Billinge at sb2896@columbia.edu.
+For more information on diffpy.labpdfproc please visit the project `web-page <https://diffpy.github.io/>`_ or email the maintainers ``Simon Billinge(sbillinge@ucsb.edu)``.
+
+Acknowledgements
+----------------
+
+``diffpy.labpdfproc`` is built and maintained with `scikit-package <https://scikit-package.github.io/scikit-package/>`_.

@@ -18,6 +18,15 @@ import time
 from importlib.metadata import version
 from pathlib import Path
 
+# Attempt to import the version dynamically from GitHub tag.
+try:
+    fullversion = version("diffpy.labpdfproc")
+except Exception:
+    fullversion = (
+        "No version found. "
+        "The correct version will appear in the released version."
+    )
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use Path().resolve() to make it absolute, like shown here
@@ -26,7 +35,9 @@ sys.path.insert(0, str(Path("../..").resolve()))
 sys.path.insert(0, str(Path("../../src").resolve()))
 
 # abbreviations
-ab_authors = "Billinge Group members and community contributors"
+ab_authors = (
+    "Yucong Chen, Till Schertenleib, Caden Myers, Billinge Group members"
+)
 
 # -- General configuration ------------------------------------------------
 
@@ -43,7 +54,8 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx_rtd_theme",
-    "m2r",
+    "sphinx_copybutton",
+    "m2r2",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -68,7 +80,6 @@ copyright = "%Y, The Trustees of Columbia University in the City of New York"
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-fullversion = version(project)
 # The short X.Y version.
 version = "".join(fullversion.split(".post")[:1])
 # The full version, including alpha/beta/rc tags.
@@ -87,6 +98,11 @@ year = today.split()[-1]
 # today_fmt = '%B %d, %Y'
 # substitute YEAR in the copyright string
 copyright = copyright.replace("%Y", year)
+
+# For sphinx_copybutton extension.
+# Do not copy "$" for shell commands in code-blocks.
+copybutton_prompt_text = r"^\$ "
+copybutton_prompt_is_regexp = True
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -122,6 +138,14 @@ nitpicky = True
 # a list of builtin themes.
 #
 html_theme = "sphinx_rtd_theme"
+
+html_context = {
+    "display_github": True,
+    "github_user": "diffpy",
+    "github_repo": "diffpy.labpdfproc",
+    "github_version": "main",
+    "conf_py_path": "/docs/source/",
+}
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

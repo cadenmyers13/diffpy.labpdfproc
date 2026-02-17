@@ -13,11 +13,11 @@ For example, if you want to load data from ``zro2_mo.xy`` in the ``example-data`
 
 .. code-block:: python
 
-    from diffpy.utils.parsers.loaddata import loadData
+    from diffpy.utils.parsers import load_data
     from diffpy.utils.diffraction_objects import DiffractionObject
 
     filepath = "../example-data/zro2_mo.xy"
-    xarray, yarray = loadData(filepath, unpack=True)
+    xarray, yarray = load_data(filepath, unpack=True)
     input_pattern = DiffractionObject(
         xarray=xarray,
         yarray=yarray,

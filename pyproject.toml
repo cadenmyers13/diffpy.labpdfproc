@@ -6,15 +6,18 @@ build-backend = "setuptools.build_meta"
 name = "diffpy.labpdfproc"
 dynamic=['version', 'dependencies']
 authors = [
-  { name="Simon J.L. Billinge group", email="simon.billinge@gmail.com" },
+  {name='Yucong Chen', email='yc4372@columbia.edu'},
+  {name='Till Schertenleib', email='ts@chem.ku.dk'},
+  {name='Caden Myers', email='cjm2304@columbia.edu'},
+  {name='Simon Billinge', email='sbillinge@ucsb.edu'},
 ]
 maintainers = [
-  { name="Simon J.L. Billinge group", email="simon.billinge@gmail.com" },
+  {name='Simon Billinge', email='sbillinge@ucsb.edu'},
 ]
 description = "Tools for processing x-ray powder diffraction data from laboratory sources."
-keywords = ['powder xrd', 'absorption correction', 'pdf', 'diffpy']
+keywords = ['powder XRD', 'absorption correction', 'PDF', 'diffpy']
 readme = "README.rst"
-requires-python = ">=3.11, <3.14"
+requires-python = ">=3.12, <3.15"
 classifiers = [
         'Development Status :: 5 - Production/Stable',
         'Environment :: Console',
@@ -25,9 +28,9 @@ classifiers = [
         'Operating System :: Microsoft :: Windows',
         'Operating System :: POSIX',
         'Operating System :: Unix',
-        'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14',
         'Topic :: Scientific/Engineering :: Physics',
         'Topic :: Scientific/Engineering :: Chemistry',
 ]
@@ -57,7 +60,12 @@ dependencies = {file = ["requirements/pip.txt"]}
 [tool.codespell]
 exclude-file = ".codespell/ignore_lines.txt"
 ignore-words = ".codespell/ignore_words.txt"
-skip = "*.cif"
+skip = "*.cif,*.dat"
+
+[tool.docformatter]
+recursive = true
+wrap-summaries = 72
+wrap-descriptions = 72
 
 [tool.black]
 line-length = 79
